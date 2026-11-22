@@ -120,11 +120,26 @@ const L_process = (G) => { const ai = G.empires[1]; ai.isPlayer = true; try { L.
   check(e.known[sci.sys] === 2 && e.known[kor.sys] === 2, 'Elk schip brengt het stelsel in kaart waar het komt');
 }
 
+// ---------- Auto-scouts use both jumps ----------
+{
+  let two = 0, moved = 0;
+  for (let seed = 1; seed <= 10; seed++) {
+    const G = fresh(seed);
+    for (let t = 0; t < 8; t++) {
+      const ids = G.fleets.filter(f => f.emp === 0 && f.ships[0].t === 'verkenner' && f.auto).map(f => f.id);
+      step(G);
+      for (const id of ids) { const n = G.anim.moves.filter(m => m.id === id).length; if (n) { moved++; if (n === 2) two++; } }
+    }
+  }
+  check(two / moved > 0.8, `Automatische verkenner gebruikt beide sprongen (${Math.round(two / moved * 100)}% van de bewegende beurten)`);
+}
+
 // ---------- Anomalies only by scouts ----------
 {
   const G = fresh(7);
   const e = G.empires[0];
   const kor = G.fleets.find(f => f.emp === 0 && f.ships[0].t === 'korvet');
+  for (const f of G.fleets) if (f.ships[0].t === 'verkenner') { f.auto = false; f.order = null; f.path = []; } // isolate from auto-scouts
   const s = G.systems[G.systems[e.capital].lanes[0]];
   s.anomaly = true;
   L.moveFleet(G, kor.id, s.id);

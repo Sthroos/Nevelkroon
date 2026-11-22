@@ -35,12 +35,31 @@ function blocksAt(G, f, sysId) {
   const s = G.systems[sysId];
   return s.owner != null && hostile(G, s.owner, f.emp) && s.starbase.hp > 0 && s.starbase.level > 0;
 }
+/**
+ * Lets a scout use leftover jumps: finishes a survey it is standing on and, when on auto,
+ * picks the next target immediately. Returns true when the scout has a new path to follow.
+ */
+function scoutChain(G, f) {
+  if (f.emp < 0 || f.ships[0].t !== 'verkenner') return false;
+  const e = G.empires[f.emp];
+  if (f.order && f.order.type === 'survey') {
+    if (f.sys !== f.order.target) return false;
+    const s = G.systems[f.sys];
+    e.known[s.id] = 2;
+    f.order = null;
+    if (s.anomaly) { s.anomaly = false; triggerAnomaly(G, e, s.id); return false; } // investigating takes the rest of the turn
+  }
+  if (!f.auto || f.order) return false;
+  updateVision(G, e);
+  return autoExplore(G, f);
+}
 function movementPhase(G) {
-  const order = shuffle(G, G.fleets.filter(f => f.path && f.path.length && (f.emp !== -1 || f.raider)));
+  const order = shuffle(G, G.fleets.filter(f => ((f.path && f.path.length) || (f.auto && !f.order)) && (f.emp !== -1 || f.raider)));
   for (const f of order) {
     const speed = 1 + (f.emp >= 0 ? (G.empires[f.emp].mods.speed || 0) : 0) + (f.ships[0].t === 'verkenner' ? 1 : 0);
     f.prev = f.sys;
-    for (let st = 0; st < speed && f.path.length; st++) {
+    for (let st = 0; st < speed; st++) {
+      if (!f.path.length && !scoutChain(G, f)) break;
       const nx = f.path[0];
       if (!G.systems[f.sys].lanes.includes(nx)) { f.path = []; break; }
       G.anim.moves.push({ id: f.id, from: f.sys, to: nx, step: st, emp: f.emp });

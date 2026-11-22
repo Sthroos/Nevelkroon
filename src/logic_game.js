@@ -457,7 +457,7 @@ function autoExplore(G, f) {
   const cands = [];
   for (const s of G.systems) {
     if (!needsSurvey(G, f.emp, s.id) || taken.has(s.id) || d[s.id] === Infinity) continue;
-    if (e.isPlayer && !e.known[s.id]) continue;
+    if (e.isPlayer && !e.known[s.id] && !s.lanes.some(n => e.known[n])) continue; // frontier: unknown but next to known space
     if (avoid(s.id)) continue;
     cands.push({ id: s.id, v: d[s.id] + rnd(G) * 0.6 });
   }
