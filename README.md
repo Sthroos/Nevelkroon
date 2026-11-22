@@ -20,6 +20,7 @@ Het spel slaat automatisch op in de browser (`localStorage`) en kan worden geëx
 - **Oorlog:** korvetten tot titanen, automatische gevechten, belegeringen, planetaire garnizoenen en schilden, onrust na verovering.
 - **Diplomatie:** oorlog, vrede, niet-aanvalsverdragen, geschenken, wapenstilstanden en coalities tegen wie te machtig wordt.
 - **Verkennen:** elk schip brengt de stelsels in kaart waar het doorheen vliegt; verkenners springen 2 stelsels per beurt en zijn de enige die anomalieën kunnen onderzoeken.
+- **Piraten:** verborgen piratenbases sturen rovers op zwak verdedigde stelsels af om te plunderen; een vernietigde basis levert buit op.
 - **Gebeurtenissen:** anomalieën met keuzes, monsters met buit, Oude Wachters bij de Kroonrelais, en rond beurt 125 de Leegte-crisis.
 - **Overwinning:** wek de Kroon, beheers 60% van de nevel gedurende 12 beurten, verover alle rivalen, of heb de hoogste score na beurt 250.
 - **Beeld en geluid:** canvas-renderer met nevels, gloeiende rijksgrenzen en gevechtsanimaties; live gegenereerde muziek (WebAudio) die meegroeit met oorlog en crisis.

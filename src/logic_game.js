@@ -123,6 +123,16 @@ function placeMonsters(G, caps) {
   const dc = multiBfs(G, caps);
   const free = G.systems.filter(s => !s.relay && s.owner == null && dc[s.id] >= 3);
   for (const s of free) if (rnd(G) < 0.12) spawnMonster(G, s.id, 'kristal');
+  // pirate bases: 3–5 jumps from the nearest capital, so they are met while expanding
+  const pirSpots = shuffle(G, free.filter(s => dc[s.id] >= 3 && dc[s.id] <= 5 && !G.fleets.some(f => f.sys === s.id)));
+  const placed = [];
+  for (const s of pirSpots) {
+    if (placed.length >= D.RULES.pirateBases[G.settings.size]) break;
+    if (placed.some(p => bfsDist(G, p)[s.id] < 3)) continue;
+    const b = spawnMonster(G, s.id, 'piratenbasis');
+    b.pirTimer = D.RULES.pirateFirstRaid + rint(G, 0, 6);
+    placed.push(s.id);
+  }
   if (G.settings.size !== 'klein') {
     const far = free.filter(s => !G.fleets.some(f => f.sys === s.id)).sort((a, b) => dc[b.id] - dc[a.id])[0];
     if (far) {

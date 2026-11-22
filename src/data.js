@@ -110,12 +110,15 @@ const MONSTERS = {
   draak:    { name: 'Nevelleviathan', ships: [['leviathan', 1]], loot: { M: 600, E: 600, R: 400 } },
   piraten:  { name: 'Piratenbende', ships: [['piraat', 4]], loot: { E: 150, M: 100 } },
   ontwaakt: { name: 'Ontwaakt oorlogsschip', ships: [['oudschip', 1]], loot: { R: 120 } },
+  piratenbasis: { name: 'Piratenbasis', ships: [['basis', 1], ['piraat', 2]], loot: { E: 250, M: 200, I: 10 } },
+  rovers:   { name: 'Piratenrovers', ships: [], loot: { E: 40, M: 30 } },
 };
 const MONSTER_SHIPS = {
   kristalsplinter: { name: 'Kristalsplinter', hp: 45, atk: 7, sh: 0, ev: 0.2 },
   wachter:         { name: 'Oude Wachter', hp: 1700, atk: 120, sh: 300, ev: 0 },
   leviathan:       { name: 'Nevelleviathan', hp: 4200, atk: 260, sh: 500, ev: 0 },
   piraat:          { name: 'Piratenkaper', hp: 50, atk: 8, sh: 10, ev: 0.15 },
+  basis:           { name: 'Piratenbasis', hp: 700, atk: 18, sh: 120, ev: 0, structure: true },
   oudschip:        { name: 'Oud oorlogsschip', hp: 200, atk: 25, sh: 40, ev: 0 },
   jager:           { name: 'Leegtejager', hp: 70, atk: 15, sh: 10, ev: 0.15 },
   verslinder:      { name: 'Verslinder', hp: 320, atk: 60, sh: 60, ev: 0 },
@@ -246,6 +249,7 @@ const RULES = {
   outpostCostM: 60, outpostBaseI: 3, outpostPerSystems: 5, outpostTurns: 2,
   warCostI: 25, pactCostI: 10, giftE: 100,
   siegeTurns: 3, shieldSiegeBonus: 3,
+  pirateBases: { klein: 2, middel: 3, groot: 4 }, pirateFirstRaid: 12, pirateRaidMin: 9, pirateRaidMax: 15, pirateMaxRaiders: 2,
   crisisTurn: 125, crisisWaveEvery: 7,
   kroonCostI: 120, kroonCostE: 400, kroonTurns: 15, kroonRelaysNeeded: 3,
   dominationShare: 0.6, dominationTurns: 12, turnLimit: 250,

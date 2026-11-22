@@ -7,10 +7,12 @@ function processTurn(G) {
   G.anim = { moves: [], combats: [], booms: [] };
   for (const e of G.empires) if (e.alive && !e.isPlayer) aiTurn(G, e);
   crisisAI(G);
+  pirateAI(G);
   movementPhase(G);
   combatPhase(G);
   civilianLosses(G);
   siegePhase(G);
+  plunderPhase(G);
   orderPhase(G);
   economyPhase(G);
   diplomacyPhase(G);
@@ -34,7 +36,7 @@ function blocksAt(G, f, sysId) {
   return s.owner != null && hostile(G, s.owner, f.emp) && s.starbase.hp > 0 && s.starbase.level > 0;
 }
 function movementPhase(G) {
-  const order = shuffle(G, G.fleets.filter(f => f.path && f.path.length && f.emp !== -1));
+  const order = shuffle(G, G.fleets.filter(f => f.path && f.path.length && (f.emp !== -1 || f.raider)));
   for (const f of order) {
     const speed = 1 + (f.emp >= 0 ? (G.empires[f.emp].mods.speed || 0) : 0) + (f.ships[0].t === 'verkenner' ? 1 : 0);
     f.prev = f.sys;
@@ -508,6 +510,64 @@ function crisisAI(G) {
     let best = null, bv = Infinity;
     for (const o of owned) { const v = d[o] + rnd(G) * 1.5; if (v < bv) { bv = v; best = o; } }
     if (best != null) { const p = findPath(G, f.sys, best); if (p) f.path = p.slice(0, 3); }
+  }
+}
+
+// ---------- Pirates ----------
+function raidStrength(G) { return Math.min(10, 2 + Math.floor(G.turn / 18)); }
+function pirateAI(G) {
+  for (const base of G.fleets.filter(f => f.monster === 'piratenbasis')) {
+    if (base.pirTimer == null) base.pirTimer = D.RULES.pirateFirstRaid;
+    if (--base.pirTimer > 0) continue;
+    base.pirTimer = rint(G, D.RULES.pirateRaidMin, D.RULES.pirateRaidMax);
+    if (G.fleets.filter(f => f.raider && f.home === base.id).length >= D.RULES.pirateMaxRaiders) continue;
+    const ships = [];
+    for (let i = 0; i < raidStrength(G); i++) ships.push({ t: 'piraat' });
+    spawnFleet(G, -1, base.sys, ships, { monster: 'rovers', raider: true, home: base.id, homeSys: base.sys, loot: { ...D.MONSTERS.rovers.loot }, raids: 0, wait: 0 });
+  }
+  for (const f of G.fleets) {
+    if (!f.raider || f.path.length) continue;
+    const s = G.systems[f.sys];
+    const homeAlive = G.fleets.some(b => b.id === f.home);
+    if (f.returning) {
+      if (f.sys === f.homeSys) {
+        if (homeAlive) { f.ships = []; continue; } // back inside the base
+        f.returning = false; f.raider = false; continue; // base gone: stays as a roaming band
+      }
+      const p = findPath(G, f.sys, f.homeSys); if (p) f.path = p.slice(0, 1); else f.returning = false;
+      continue;
+    }
+    if (s.owner != null) { if (++f.wait > 3) f.returning = true; continue; } // busy at a target
+    const pw = fleetPower(G, f);
+    const d = bfsDist(G, f.sys);
+    let best = null, bv = -Infinity;
+    for (const t of G.systems) {
+      if (t.owner == null || d[t.id] > 5) continue;
+      const def = defenseAt(G, t.id, -1);
+      if (def > pw * 0.7) continue;
+      const v = (coloniesIn(G, t.id).length ? 0 : 3) - d[t.id] + rnd(G);
+      if (v > bv) { bv = v; best = t.id; }
+    }
+    if (best == null) { if (f.sys !== f.homeSys && homeAlive) f.returning = true; continue; }
+    const p = findPath(G, f.sys, best);
+    if (p) { f.path = p; f.wait = 0; }
+  }
+  G.fleets = G.fleets.filter(f => f.ships.length > 0);
+}
+function plunderPhase(G) {
+  for (const f of G.fleets) {
+    if (!f.raider || f.path.length || f.returning) continue;
+    const s = G.systems[f.sys];
+    if (s.owner == null) continue;
+    const ownerArmed = G.fleets.some(o => o.sys === s.id && o.emp === s.owner && fleetArmed(G, o)) || (s.starbase.level > 0 && s.starbase.hp > 0) || coloniesIn(G, s.id).some(c => c.gar > 0);
+    if (ownerArmed) continue;
+    const e = G.empires[s.owner];
+    const want = Math.round(25 + G.turn * 0.6);
+    const tE = Math.max(0, Math.min(want, Math.floor(e.res.E))), tM = Math.max(0, Math.min(want, Math.floor(e.res.M)));
+    e.res.E -= tE; e.res.M -= tM;
+    f.loot.E = (f.loot.E || 0) + tE; f.loot.M = (f.loot.M || 0) + tM;
+    log(G, e.id, 'Piraten plunderen ' + s.name + ': −' + tE + ' energie, −' + tM + ' mineralen.', 'war', s.id);
+    if (++f.raids >= 2) f.returning = true;
   }
 }
 

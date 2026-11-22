@@ -220,7 +220,7 @@ function aiMilitary(G, e) {
     let best = null, bv = 0;
     // defend
     for (const sid of myOwned) {
-      const hostiles = G.fleets.filter(o => o.sys === sid && hostile(G, o.emp, e.id) && o.emp !== -1 && fleetArmed(G, o));
+      const hostiles = G.fleets.filter(o => o.sys === sid && hostile(G, o.emp, e.id) && (o.emp !== -1 || o.raider) && fleetArmed(G, o));
       if (!hostiles.length) continue;
       const hp2 = defenseAt(G, sid, e.id);
       const ownStatic = starbasePower(G, G.systems[sid]) + coloniesIn(G, sid).reduce((a, c) => a + Math.sqrt(Math.max(0, c.gar) * (2 + c.pop * 0.8)), 0);
@@ -251,7 +251,7 @@ function aiMilitary(G, e) {
         if (o.emp === -2 && !o.rift && G.systems[o.sys].owner == null) continue;
         const def = defenseAt(G, o.sys, e.id);
         if (pw < def * 1.4) continue;
-        let val = o.rift ? 8 : (o.monster === 'wachter' ? 6 : o.monster === 'draak' ? 7 : 3);
+        let val = o.rift ? 8 : (o.monster === 'wachter' ? 6 : o.monster === 'draak' ? 7 : o.monster === 'piratenbasis' ? 5 : 3);
         const v = val / (d[o.sys] + 2);
         if (v > bv && !claimed.has(o.sys)) { bv = v; best = o.sys; }
       }

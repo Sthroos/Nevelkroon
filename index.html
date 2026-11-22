@@ -327,12 +327,15 @@ const MONSTERS = {
   draak:    { name: 'Nevelleviathan', ships: [['leviathan', 1]], loot: { M: 600, E: 600, R: 400 } },
   piraten:  { name: 'Piratenbende', ships: [['piraat', 4]], loot: { E: 150, M: 100 } },
   ontwaakt: { name: 'Ontwaakt oorlogsschip', ships: [['oudschip', 1]], loot: { R: 120 } },
+  piratenbasis: { name: 'Piratenbasis', ships: [['basis', 1], ['piraat', 2]], loot: { E: 250, M: 200, I: 10 } },
+  rovers:   { name: 'Piratenrovers', ships: [], loot: { E: 40, M: 30 } },
 };
 const MONSTER_SHIPS = {
   kristalsplinter: { name: 'Kristalsplinter', hp: 45, atk: 7, sh: 0, ev: 0.2 },
   wachter:         { name: 'Oude Wachter', hp: 1700, atk: 120, sh: 300, ev: 0 },
   leviathan:       { name: 'Nevelleviathan', hp: 4200, atk: 260, sh: 500, ev: 0 },
   piraat:          { name: 'Piratenkaper', hp: 50, atk: 8, sh: 10, ev: 0.15 },
+  basis:           { name: 'Piratenbasis', hp: 700, atk: 18, sh: 120, ev: 0, structure: true },
   oudschip:        { name: 'Oud oorlogsschip', hp: 200, atk: 25, sh: 40, ev: 0 },
   jager:           { name: 'Leegtejager', hp: 70, atk: 15, sh: 10, ev: 0.15 },
   verslinder:      { name: 'Verslinder', hp: 320, atk: 60, sh: 60, ev: 0 },
@@ -463,6 +466,7 @@ const RULES = {
   outpostCostM: 60, outpostBaseI: 3, outpostPerSystems: 5, outpostTurns: 2,
   warCostI: 25, pactCostI: 10, giftE: 100,
   siegeTurns: 3, shieldSiegeBonus: 3,
+  pirateBases: { klein: 2, middel: 3, groot: 4 }, pirateFirstRaid: 12, pirateRaidMin: 9, pirateRaidMax: 15, pirateMaxRaiders: 2,
   crisisTurn: 125, crisisWaveEvery: 7,
   kroonCostI: 120, kroonCostE: 400, kroonTurns: 15, kroonRelaysNeeded: 3,
   dominationShare: 0.6, dominationTurns: 12, turnLimit: 250,
@@ -908,6 +912,16 @@ function placeMonsters(G, caps) {
   const dc = multiBfs(G, caps);
   const free = G.systems.filter(s => !s.relay && s.owner == null && dc[s.id] >= 3);
   for (const s of free) if (rnd(G) < 0.12) spawnMonster(G, s.id, 'kristal');
+  // pirate bases: 3–5 jumps from the nearest capital, so they are met while expanding
+  const pirSpots = shuffle(G, free.filter(s => dc[s.id] >= 3 && dc[s.id] <= 5 && !G.fleets.some(f => f.sys === s.id)));
+  const placed = [];
+  for (const s of pirSpots) {
+    if (placed.length >= D.RULES.pirateBases[G.settings.size]) break;
+    if (placed.some(p => bfsDist(G, p)[s.id] < 3)) continue;
+    const b = spawnMonster(G, s.id, 'piratenbasis');
+    b.pirTimer = D.RULES.pirateFirstRaid + rint(G, 0, 6);
+    placed.push(s.id);
+  }
   if (G.settings.size !== 'klein') {
     const far = free.filter(s => !G.fleets.some(f => f.sys === s.id)).sort((a, b) => dc[b.id] - dc[a.id])[0];
     if (far) {
@@ -1490,10 +1504,12 @@ function processTurn(G) {
   G.anim = { moves: [], combats: [], booms: [] };
   for (const e of G.empires) if (e.alive && !e.isPlayer) aiTurn(G, e);
   crisisAI(G);
+  pirateAI(G);
   movementPhase(G);
   combatPhase(G);
   civilianLosses(G);
   siegePhase(G);
+  plunderPhase(G);
   orderPhase(G);
   economyPhase(G);
   diplomacyPhase(G);
@@ -1517,7 +1533,7 @@ function blocksAt(G, f, sysId) {
   return s.owner != null && hostile(G, s.owner, f.emp) && s.starbase.hp > 0 && s.starbase.level > 0;
 }
 function movementPhase(G) {
-  const order = shuffle(G, G.fleets.filter(f => f.path && f.path.length && f.emp !== -1));
+  const order = shuffle(G, G.fleets.filter(f => f.path && f.path.length && (f.emp !== -1 || f.raider)));
   for (const f of order) {
     const speed = 1 + (f.emp >= 0 ? (G.empires[f.emp].mods.speed || 0) : 0) + (f.ships[0].t === 'verkenner' ? 1 : 0);
     f.prev = f.sys;
@@ -1994,6 +2010,64 @@ function crisisAI(G) {
   }
 }
 
+// ---------- Pirates ----------
+function raidStrength(G) { return Math.min(10, 2 + Math.floor(G.turn / 18)); }
+function pirateAI(G) {
+  for (const base of G.fleets.filter(f => f.monster === 'piratenbasis')) {
+    if (base.pirTimer == null) base.pirTimer = D.RULES.pirateFirstRaid;
+    if (--base.pirTimer > 0) continue;
+    base.pirTimer = rint(G, D.RULES.pirateRaidMin, D.RULES.pirateRaidMax);
+    if (G.fleets.filter(f => f.raider && f.home === base.id).length >= D.RULES.pirateMaxRaiders) continue;
+    const ships = [];
+    for (let i = 0; i < raidStrength(G); i++) ships.push({ t: 'piraat' });
+    spawnFleet(G, -1, base.sys, ships, { monster: 'rovers', raider: true, home: base.id, homeSys: base.sys, loot: { ...D.MONSTERS.rovers.loot }, raids: 0, wait: 0 });
+  }
+  for (const f of G.fleets) {
+    if (!f.raider || f.path.length) continue;
+    const s = G.systems[f.sys];
+    const homeAlive = G.fleets.some(b => b.id === f.home);
+    if (f.returning) {
+      if (f.sys === f.homeSys) {
+        if (homeAlive) { f.ships = []; continue; } // back inside the base
+        f.returning = false; f.raider = false; continue; // base gone: stays as a roaming band
+      }
+      const p = findPath(G, f.sys, f.homeSys); if (p) f.path = p.slice(0, 1); else f.returning = false;
+      continue;
+    }
+    if (s.owner != null) { if (++f.wait > 3) f.returning = true; continue; } // busy at a target
+    const pw = fleetPower(G, f);
+    const d = bfsDist(G, f.sys);
+    let best = null, bv = -Infinity;
+    for (const t of G.systems) {
+      if (t.owner == null || d[t.id] > 5) continue;
+      const def = defenseAt(G, t.id, -1);
+      if (def > pw * 0.7) continue;
+      const v = (coloniesIn(G, t.id).length ? 0 : 3) - d[t.id] + rnd(G);
+      if (v > bv) { bv = v; best = t.id; }
+    }
+    if (best == null) { if (f.sys !== f.homeSys && homeAlive) f.returning = true; continue; }
+    const p = findPath(G, f.sys, best);
+    if (p) { f.path = p; f.wait = 0; }
+  }
+  G.fleets = G.fleets.filter(f => f.ships.length > 0);
+}
+function plunderPhase(G) {
+  for (const f of G.fleets) {
+    if (!f.raider || f.path.length || f.returning) continue;
+    const s = G.systems[f.sys];
+    if (s.owner == null) continue;
+    const ownerArmed = G.fleets.some(o => o.sys === s.id && o.emp === s.owner && fleetArmed(G, o)) || (s.starbase.level > 0 && s.starbase.hp > 0) || coloniesIn(G, s.id).some(c => c.gar > 0);
+    if (ownerArmed) continue;
+    const e = G.empires[s.owner];
+    const want = Math.round(25 + G.turn * 0.6);
+    const tE = Math.max(0, Math.min(want, Math.floor(e.res.E))), tM = Math.max(0, Math.min(want, Math.floor(e.res.M)));
+    e.res.E -= tE; e.res.M -= tM;
+    f.loot.E = (f.loot.E || 0) + tE; f.loot.M = (f.loot.M || 0) + tM;
+    log(G, e.id, 'Piraten plunderen ' + s.name + ': −' + tE + ' energie, −' + tM + ' mineralen.', 'war', s.id);
+    if (++f.raids >= 2) f.returning = true;
+  }
+}
+
 // ---------- Kroon ----------
 function kroonPhase(G) {
   if (!G.kroon) return;
@@ -2264,7 +2338,7 @@ function aiMilitary(G, e) {
     let best = null, bv = 0;
     // defend
     for (const sid of myOwned) {
-      const hostiles = G.fleets.filter(o => o.sys === sid && hostile(G, o.emp, e.id) && o.emp !== -1 && fleetArmed(G, o));
+      const hostiles = G.fleets.filter(o => o.sys === sid && hostile(G, o.emp, e.id) && (o.emp !== -1 || o.raider) && fleetArmed(G, o));
       if (!hostiles.length) continue;
       const hp2 = defenseAt(G, sid, e.id);
       const ownStatic = starbasePower(G, G.systems[sid]) + coloniesIn(G, sid).reduce((a, c) => a + Math.sqrt(Math.max(0, c.gar) * (2 + c.pop * 0.8)), 0);
@@ -2295,7 +2369,7 @@ function aiMilitary(G, e) {
         if (o.emp === -2 && !o.rift && G.systems[o.sys].owner == null) continue;
         const def = defenseAt(G, o.sys, e.id);
         if (pw < def * 1.4) continue;
-        let val = o.rift ? 8 : (o.monster === 'wachter' ? 6 : o.monster === 'draak' ? 7 : 3);
+        let val = o.rift ? 8 : (o.monster === 'wachter' ? 6 : o.monster === 'draak' ? 7 : o.monster === 'piratenbasis' ? 5 : 3);
         const v = val / (d[o.sys] + 2);
         if (v > bv && !claimed.has(o.sys)) { bv = v; best = o.sys; }
       }
@@ -2539,6 +2613,7 @@ const AudioFX = (() => {
 const STEP_MS = 650;
 const MONSTER_COLOR = '#ff5d5d';
 const CRISIS_COLOR = '#ff2fb0';
+const PIRATE_COLOR = '#ff9a3d';
 
 const R = {
   canvas: null, ctx: null, dpr: 1, W: 0, H: 0,
@@ -2711,9 +2786,9 @@ function fleetSlots(G) {
   }
   return out;
 }
-function fleetColor(G, f) { return f.emp === -1 ? MONSTER_COLOR : f.emp === -2 ? CRISIS_COLOR : G.empires[f.emp].color; }
+function fleetColor(G, f) { return f.emp === -1 ? (['piratenbasis', 'rovers', 'piraten'].includes(f.monster) ? PIRATE_COLOR : MONSTER_COLOR) : f.emp === -2 ? CRISIS_COLOR : G.empires[f.emp].color; }
 function fleetGlyph(G, f) {
-  if (f.emp === -1) return f.monster === 'piraten' ? 'claw' : 'monster';
+  if (f.emp === -1) return f.monster === 'piratenbasis' ? 'pbase' : (f.monster === 'piraten' || f.monster === 'rovers') ? 'claw' : 'monster';
   if (f.emp === -2) return f.rift ? 'rift' : 'void';
   if (fleetIsCiv(f)) return 'civ_' + f.ships[0].t;
   return faction(G.empires[f.emp]).ship;
@@ -2730,6 +2805,7 @@ function drawGlyph(g, kind, x, y, s, ang, col, t) {
     case 'blade': g.moveTo(s * 1.2, 0); g.lineTo(-s * 0.4, s * 0.35); g.lineTo(-s * 0.8, s * 0.8); g.lineTo(-s * 0.6, 0); g.lineTo(-s * 0.8, -s * 0.8); g.lineTo(-s * 0.4, -s * 0.35); break;
     case 'monster': for (let i = 0; i < 10; i++) { const a = i / 10 * Math.PI * 2 + t; const r = i % 2 ? s * 0.45 : s; g.lineTo(Math.cos(a) * r, Math.sin(a) * r); } break;
     case 'void': for (let i = 0; i < 7; i++) { const a = i / 7 * Math.PI * 2 - t * 1.5; const r = s * (0.6 + 0.4 * Math.sin(t * 3 + i)); g.lineTo(Math.cos(a) * r, Math.sin(a) * r); } break;
+    case 'pbase': for (let i = 0; i < 6; i++) { const a = i / 6 * Math.PI * 2 + t * 0.2; g.lineTo(Math.cos(a) * s, Math.sin(a) * s); } g.closePath(); g.moveTo(s * 0.45, 0); g.arc(0, 0, s * 0.45, 0, Math.PI * 2, true); break;
     case 'rift': g.ellipse(0, 0, s * 0.5, s * 1.4, t * 0.3, 0, Math.PI * 2); break;
     case 'civ_verkenner': g.arc(0, 0, s * 0.45, 0, Math.PI * 2); g.moveTo(s * 0.9, 0); g.lineTo(s * 0.3, s * 0.2); g.lineTo(s * 0.3, -s * 0.2); break;
     case 'civ_bouwschip': g.rect(-s * 0.5, -s * 0.5, s, s); break;
@@ -3881,7 +3957,7 @@ function showHelp() {
     <h4>Uitbreiden</h4><p>Elk schip dat door een stelsel vliegt, brengt de planeten en grondstoffen in kaart. Verkenners springen 2 stelsels per beurt en zijn de enige schepen die anomalieën kunnen onderzoeken. Bouwschepen claimen verkende stelsels met een buitenpost: je krijgt dan de grondstoffen van dat stelsel. Kolonieschepen stichten kolonies op bewoonbare planeten. Planeten van je voorkeurstype zijn extra groot.</p>
     <h4>Kolonies</h4><p>Bevolking groeit vanzelf en levert grondstoffen. Meer bevolking geeft meer bouwplaatsen. Een scheepswerf bouwt meerdere schepen tegelijk.</p>
     <h4>Oorlog</h4><p>Vloten vechten automatisch als vijanden elkaar ontmoeten. Vernietig sterrenbases en garnizoenen en blijf in het stelsel om het te belegeren. Na enkele beurten is het van jou. Planetaire schilden verlengen een belegering. Veroverde kolonies hebben een tijdje last van onrust.</p>
-    <h4>Gevaren</h4><p>Monsters bewaken waardevolle stelsels en laten buit achter. Oude Wachters beschermen de Kroonrelais. Rond beurt ${D.RULES.crisisTurn} opent <b>de Leegte</b> scheuren waaruit steeds sterkere vloten komen. Sluit de scheuren om de nevel te redden.</p>
+    <h4>Gevaren</h4><p>Monsters bewaken waardevolle stelsels en laten buit achter. Verborgen <b>piratenbases</b> sturen vanaf beurt ${D.RULES.pirateFirstRaid} rovers op zwak verdedigde stelsels af: ze plunderen energie en mineralen. Een sterrenbasis of een paar oorlogsschepen houdt ze tegen; een vernietigde basis levert flinke buit op. Oude Wachters beschermen de Kroonrelais. Rond beurt ${D.RULES.crisisTurn} opent <b>de Leegte</b> scheuren waaruit steeds sterkere vloten komen. Sluit de scheuren om de nevel te redden.</p>
     <h4>Diplomatie</h4><p>De houding van andere rijken hangt af van hun karakter, gedeelde grenzen, geschenken en eerdere oorlogen. Na een vrede volgt een wapenstilstand van 20 beurten. Wie te machtig wordt, krijgt een coalitie tegen zich.</p>
     </div>`);
 }
@@ -3941,7 +4017,7 @@ function afterTurn(prevLog) {
   const maxT = window.innerWidth <= 760 ? 3 : 6;
   const prio = (l) => ({ big: 0, crisis: 0, war: 1, combat: 1, peace: 2, colony: 2, tech: 3, event: 3, loot: 3, contact: 3 }[l.type] ?? 5);
   for (const l of fresh.slice().sort((a, b) => prio(a) - prio(b))) { if (shown++ < maxT) toast(l.text, l.type, l.sys); }
-  const intruders = G.fleets.filter(f => f.emp !== UI.me && f.emp !== -1 && G.systems[f.sys].owner === UI.me && hostile(G, f.emp, UI.me) && fleetArmed(G, f));
+  const intruders = G.fleets.filter(f => f.emp !== UI.me && (f.emp !== -1 || f.raider) && G.systems[f.sys].owner === UI.me && hostile(G, f.emp, UI.me) && fleetArmed(G, f));
   if (intruders.length) {
     const s0 = G.systems[intruders[0].sys];
     toast('⚠ Vijandelijke vloot in ' + s0.name + (intruders.length > 1 ? ' en ' + (intruders.length - 1) + ' andere stelsel(s)' : '') + '!', 'war', s0.id);

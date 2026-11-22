@@ -846,7 +846,7 @@ function showHelp() {
     <h4>Uitbreiden</h4><p>Elk schip dat door een stelsel vliegt, brengt de planeten en grondstoffen in kaart. Verkenners springen 2 stelsels per beurt en zijn de enige schepen die anomalieën kunnen onderzoeken. Bouwschepen claimen verkende stelsels met een buitenpost: je krijgt dan de grondstoffen van dat stelsel. Kolonieschepen stichten kolonies op bewoonbare planeten. Planeten van je voorkeurstype zijn extra groot.</p>
     <h4>Kolonies</h4><p>Bevolking groeit vanzelf en levert grondstoffen. Meer bevolking geeft meer bouwplaatsen. Een scheepswerf bouwt meerdere schepen tegelijk.</p>
     <h4>Oorlog</h4><p>Vloten vechten automatisch als vijanden elkaar ontmoeten. Vernietig sterrenbases en garnizoenen en blijf in het stelsel om het te belegeren. Na enkele beurten is het van jou. Planetaire schilden verlengen een belegering. Veroverde kolonies hebben een tijdje last van onrust.</p>
-    <h4>Gevaren</h4><p>Monsters bewaken waardevolle stelsels en laten buit achter. Oude Wachters beschermen de Kroonrelais. Rond beurt ${D.RULES.crisisTurn} opent <b>de Leegte</b> scheuren waaruit steeds sterkere vloten komen. Sluit de scheuren om de nevel te redden.</p>
+    <h4>Gevaren</h4><p>Monsters bewaken waardevolle stelsels en laten buit achter. Verborgen <b>piratenbases</b> sturen vanaf beurt ${D.RULES.pirateFirstRaid} rovers op zwak verdedigde stelsels af: ze plunderen energie en mineralen. Een sterrenbasis of een paar oorlogsschepen houdt ze tegen; een vernietigde basis levert flinke buit op. Oude Wachters beschermen de Kroonrelais. Rond beurt ${D.RULES.crisisTurn} opent <b>de Leegte</b> scheuren waaruit steeds sterkere vloten komen. Sluit de scheuren om de nevel te redden.</p>
     <h4>Diplomatie</h4><p>De houding van andere rijken hangt af van hun karakter, gedeelde grenzen, geschenken en eerdere oorlogen. Na een vrede volgt een wapenstilstand van 20 beurten. Wie te machtig wordt, krijgt een coalitie tegen zich.</p>
     </div>`);
 }
@@ -906,7 +906,7 @@ function afterTurn(prevLog) {
   const maxT = window.innerWidth <= 760 ? 3 : 6;
   const prio = (l) => ({ big: 0, crisis: 0, war: 1, combat: 1, peace: 2, colony: 2, tech: 3, event: 3, loot: 3, contact: 3 }[l.type] ?? 5);
   for (const l of fresh.slice().sort((a, b) => prio(a) - prio(b))) { if (shown++ < maxT) toast(l.text, l.type, l.sys); }
-  const intruders = G.fleets.filter(f => f.emp !== UI.me && f.emp !== -1 && G.systems[f.sys].owner === UI.me && hostile(G, f.emp, UI.me) && fleetArmed(G, f));
+  const intruders = G.fleets.filter(f => f.emp !== UI.me && (f.emp !== -1 || f.raider) && G.systems[f.sys].owner === UI.me && hostile(G, f.emp, UI.me) && fleetArmed(G, f));
   if (intruders.length) {
     const s0 = G.systems[intruders[0].sys];
     toast('⚠ Vijandelijke vloot in ' + s0.name + (intruders.length > 1 ? ' en ' + (intruders.length - 1) + ' andere stelsel(s)' : '') + '!', 'war', s0.id);

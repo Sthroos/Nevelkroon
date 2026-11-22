@@ -3,6 +3,7 @@
 const STEP_MS = 650;
 const MONSTER_COLOR = '#ff5d5d';
 const CRISIS_COLOR = '#ff2fb0';
+const PIRATE_COLOR = '#ff9a3d';
 
 const R = {
   canvas: null, ctx: null, dpr: 1, W: 0, H: 0,
@@ -175,9 +176,9 @@ function fleetSlots(G) {
   }
   return out;
 }
-function fleetColor(G, f) { return f.emp === -1 ? MONSTER_COLOR : f.emp === -2 ? CRISIS_COLOR : G.empires[f.emp].color; }
+function fleetColor(G, f) { return f.emp === -1 ? (['piratenbasis', 'rovers', 'piraten'].includes(f.monster) ? PIRATE_COLOR : MONSTER_COLOR) : f.emp === -2 ? CRISIS_COLOR : G.empires[f.emp].color; }
 function fleetGlyph(G, f) {
-  if (f.emp === -1) return f.monster === 'piraten' ? 'claw' : 'monster';
+  if (f.emp === -1) return f.monster === 'piratenbasis' ? 'pbase' : (f.monster === 'piraten' || f.monster === 'rovers') ? 'claw' : 'monster';
   if (f.emp === -2) return f.rift ? 'rift' : 'void';
   if (fleetIsCiv(f)) return 'civ_' + f.ships[0].t;
   return faction(G.empires[f.emp]).ship;
@@ -194,6 +195,7 @@ function drawGlyph(g, kind, x, y, s, ang, col, t) {
     case 'blade': g.moveTo(s * 1.2, 0); g.lineTo(-s * 0.4, s * 0.35); g.lineTo(-s * 0.8, s * 0.8); g.lineTo(-s * 0.6, 0); g.lineTo(-s * 0.8, -s * 0.8); g.lineTo(-s * 0.4, -s * 0.35); break;
     case 'monster': for (let i = 0; i < 10; i++) { const a = i / 10 * Math.PI * 2 + t; const r = i % 2 ? s * 0.45 : s; g.lineTo(Math.cos(a) * r, Math.sin(a) * r); } break;
     case 'void': for (let i = 0; i < 7; i++) { const a = i / 7 * Math.PI * 2 - t * 1.5; const r = s * (0.6 + 0.4 * Math.sin(t * 3 + i)); g.lineTo(Math.cos(a) * r, Math.sin(a) * r); } break;
+    case 'pbase': for (let i = 0; i < 6; i++) { const a = i / 6 * Math.PI * 2 + t * 0.2; g.lineTo(Math.cos(a) * s, Math.sin(a) * s); } g.closePath(); g.moveTo(s * 0.45, 0); g.arc(0, 0, s * 0.45, 0, Math.PI * 2, true); break;
     case 'rift': g.ellipse(0, 0, s * 0.5, s * 1.4, t * 0.3, 0, Math.PI * 2); break;
     case 'civ_verkenner': g.arc(0, 0, s * 0.45, 0, Math.PI * 2); g.moveTo(s * 0.9, 0); g.lineTo(s * 0.3, s * 0.2); g.lineTo(s * 0.3, -s * 0.2); break;
     case 'civ_bouwschip': g.rect(-s * 0.5, -s * 0.5, s, s); break;

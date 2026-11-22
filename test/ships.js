@@ -225,5 +225,48 @@ const L_process = (G) => { const ai = G.empires[1]; ai.isPlayer = true; try { L.
   check(m.ships.length + b.ships.length === n && b.ships.length > 0, 'Splitsen verdeelt de schepen');
 }
 
+// ---------- Pirates: raid, plunder, return; base gives loot ----------
+{
+  const G = L.createGame({ size: 'middel', ais: 1, difficulty: 'normaal', faction: 'aurel', seed: 21 });
+  const bases = G.fleets.filter(f => f.monster === 'piratenbasis');
+  check(bases.length === D.RULES.pirateBases.middel, `Piratenbases geplaatst (${bases.length})`);
+  const base = bases[0];
+  const e = G.empires[0];
+  // give the player an undefended outpost next to the base
+  const tgt = G.systems[base.sys].lanes.find(n => G.systems[n].owner == null && !G.fleets.some(f => f.sys === n));
+  G.systems[tgt].owner = 0; G.systems[tgt].starbase = { level: 1, hp: 0 };
+  G.fleets = G.fleets.filter(f => f.emp !== 1 && (f.emp >= 0 || f.monster === 'piratenbasis'));
+  e.res.E = 500; e.res.M = 500;
+  base.pirTimer = 1;
+  let spawned = false, plundered = false, returned = false, guard = 0;
+  while (guard++ < 14) {
+    step(G);
+    const r = G.fleets.find(f => f.raider && f.home === base.id);
+    if (r) spawned = true;
+    if (G.log.some(l => /Piraten plunderen/.test(l.text) && l.emp === 0)) plundered = true;
+    if (spawned && plundered && !r) { returned = true; break; }
+  }
+  check(spawned, 'Basis stuurt rovers uit');
+  check(plundered, `Rovers plunderen een onverdedigde buitenpost (${G.log.filter(l => /Piraten plunderen/.test(l.text)).map(l => l.text.split(': ')[1]).join(' / ')})`);
+  check(returned, 'Rovers keren terug naar hun basis');
+  // defended outpost is left alone
+  const H = L.createGame({ size: 'middel', ais: 1, difficulty: 'normaal', faction: 'aurel', seed: 21 });
+  const hb = H.fleets.find(f => f.monster === 'piratenbasis');
+  const ht = H.systems[hb.sys].lanes.find(n => H.systems[n].owner == null && !H.fleets.some(f => f.sys === n));
+  H.systems[ht].owner = 0; H.systems[ht].starbase = { level: 3, hp: D.STARBASES[3].hp };
+  H.fleets = H.fleets.filter(f => f.emp !== 1 && (f.emp >= 0 || f.monster === 'piratenbasis'));
+  hb.pirTimer = 1;
+  for (let i = 0; i < 8; i++) step(H);
+  check(!H.log.some(l => /Piraten plunderen/.test(l.text)), 'Sterk verdedigde stelsels worden niet aangevallen');
+  // kill base -> loot
+  const K = L.createGame({ size: 'middel', ais: 1, difficulty: 'normaal', faction: 'aurel', seed: 21 });
+  const kb = K.fleets.find(f => f.monster === 'piratenbasis');
+  K.fleets = K.fleets.filter(f => f.emp !== 1 && (f.emp >= 0 || f.id === kb.id));
+  spawn(K, 0, kb.sys, ['slagschip', 'slagschip', 'slagschip']);
+  const E0 = K.empires[0].res.E;
+  let g2 = 0; while (K.fleets.includes(kb) && g2++ < 5) step(K);
+  check(!K.fleets.includes(kb) && K.log.some(l => /Piratenbasis verslagen/.test(l.text)), `Piratenbasis vernietigd met buit (energie +${Math.round(K.empires[0].res.E - E0)} incl. inkomsten)`);
+}
+
 console.log(failures ? `\n${failures} controle(s) mislukt` : '\nAlle controles geslaagd');
 process.exit(failures ? 1 : 0);
