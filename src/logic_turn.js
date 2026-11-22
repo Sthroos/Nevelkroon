@@ -18,6 +18,7 @@ function processTurn(G) {
   crisisPhase(G);
   kroonPhase(G);
   for (const e of G.empires) if (e.alive) updateVision(G, e);
+  for (const f of G.fleets) if (f.auto && !f.order && !f.path.length) autoExplore(G, f);
   contactPhase(G);
   victoryCheck(G);
   for (const e of G.empires) e.score.push(Math.round(scoreOf(G, e)));
@@ -35,7 +36,7 @@ function blocksAt(G, f, sysId) {
 function movementPhase(G) {
   const order = shuffle(G, G.fleets.filter(f => f.path && f.path.length && f.emp !== -1));
   for (const f of order) {
-    const speed = 1 + (f.emp >= 0 ? (G.empires[f.emp].mods.speed || 0) : 0);
+    const speed = 1 + (f.emp >= 0 ? (G.empires[f.emp].mods.speed || 0) : 0) + (f.ships[0].t === 'verkenner' ? 1 : 0);
     f.prev = f.sys;
     for (let st = 0; st < speed && f.path.length; st++) {
       const nx = f.path[0];
@@ -43,7 +44,7 @@ function movementPhase(G) {
       G.anim.moves.push({ id: f.id, from: f.sys, to: nx, step: st, emp: f.emp });
       f.sys = nx;
       f.path.shift();
-      if (f.emp >= 0) { const e = G.empires[f.emp]; if (!e.known[nx]) e.known[nx] = 1; }
+      if (f.emp >= 0) G.empires[f.emp].known[nx] = 2; // any ship passing through charts the planets
       if (blocksAt(G, f, nx)) break;
     }
   }
@@ -271,10 +272,8 @@ function orderPhase(G) {
     }
     const s = G.systems[f.sys];
     if (o.type === 'survey') {
-      if (e.known[s.id] !== 2) {
-        e.known[s.id] = 2;
-        if (s.anomaly) { s.anomaly = false; triggerAnomaly(G, e, s.id); }
-      }
+      e.known[s.id] = 2;
+      if (s.anomaly) { s.anomaly = false; triggerAnomaly(G, e, s.id); }
       f.order = null;
       if (f.auto) autoExplore(G, f);
     } else if (o.type === 'outpost') {

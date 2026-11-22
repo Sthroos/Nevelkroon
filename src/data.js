@@ -85,7 +85,7 @@ const BUILDINGS = {
 
 // Ships. cost in minerals (M) unless noted.
 const SHIPS = {
-  verkenner: { name: 'Verkenner', civ: true, cost: 50, turns: 2, up: 0.5, hp: 20, atk: 0, sh: 0, ev: 0.5, desc: 'Verkent stelsels en onderzoekt anomalieën.' },
+  verkenner: { name: 'Verkenner', civ: true, cost: 50, turns: 2, up: 0.5, hp: 20, atk: 0, sh: 0, ev: 0.5, desc: 'Snel (2 sprongen per beurt) en het enige schip dat anomalieën kan onderzoeken.' },
   bouwschip: { name: 'Bouwschip', civ: true, cost: 70, turns: 2, up: 0.5, hp: 25, atk: 0, sh: 0, ev: 0.2, desc: 'Bouwt buitenposten en sterrenbases.' },
   kolonie:   { name: 'Kolonieschip', civ: true, cost: 150, costI: 3, turns: 4, up: 1, hp: 30, atk: 0, sh: 0, ev: 0, desc: 'Sticht een nieuwe kolonie op een bewoonbare planeet.' },
   korvet:    { name: 'Korvet', cost: 40, turns: 2, up: 0.4, hp: 25, atk: 5, sh: 0, ev: 0.3, size: 1 },

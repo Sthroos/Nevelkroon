@@ -280,7 +280,7 @@ function fleetToSystem(sid, direct) {
   }
   if (!civ || direct) return act(() => { moveFleet(G, f.id, sid); AudioFX.sfx('move'); });
   const opts = [];
-  if (t === 'verkenner' && e.known[sid] !== 2) opts.push({ label: 'Verken ' + G.systems[sid].name, run: () => orderSurvey(G, f.id, sid) });
+  if (t === 'verkenner' && needsSurvey(G, UI.me, sid)) opts.push({ label: (e.known[sid] === 2 ? 'Onderzoek anomalie bij ' : 'Verken ') + G.systems[sid].name, run: () => orderSurvey(G, f.id, sid) });
   if (t === 'bouwschip') {
     const w = canOutpost(G, UI.me, sid);
     if (G.systems[sid].owner == null) opts.push({ label: `Bouw buitenpost (${D.RULES.outpostCostM}${D.RES_ICONS.M} ${outpostCostI(G, e)}${D.RES_ICONS.I})`, run: () => orderOutpost(G, f.id, sid), why: w });
@@ -505,8 +505,9 @@ function systemPanel(sid) {
     h += `<div class="small dim" style="margin-top:6px">Verdediging ${fmt(Math.max(0, s.starbase.hp))}/${sb.hp}</div><div class="bar red"><i style="width:${Math.max(0, s.starbase.hp) / sb.hp * 100}%"></i></div>`;
   }
   if (kn < 2) {
-    h += `<p class="dim small">Dit stelsel is nog niet verkend. Stuur een verkenner om planeten en grondstoffen te ontdekken.</p>`;
+    h += `<p class="dim small">Dit stelsel is nog niet in kaart gebracht. Elk eigen schip dat erheen vliegt, onthult de planeten en grondstoffen.</p>`;
   } else {
+    if (s.anomaly) h += `<div class="small" style="color:var(--E);margin-top:6px">? Anomalie gedetecteerd. Alleen een verkenner kan die onderzoeken.</div>`;
     h += `<h4>Grondstoffen</h4><div class="small">${depText(s.dep)}${s.owner == null ? ' <span class="dim">(buitenpost nodig)</span>' : ''}</div>`;
     h += `<h4>Planeten</h4>`;
     s.planets.forEach((p, pi) => {
@@ -528,7 +529,7 @@ function systemPanel(sid) {
     if (t === 'bouwschip' && s.owner == null && kn === 2) acts.push(`<button class="btn small" data-act="quick" data-kind="outpost" data-fleet="${f.id}" data-sys="${sid}" ${canOutpost(G, UI.me, sid) ? 'disabled title="' + esc(canOutpost(G, UI.me, sid)) + '"' : ''}>Bouw buitenpost (${D.RULES.outpostCostM}${D.RES_ICONS.M} ${outpostCostI(G, e)}${D.RES_ICONS.I})</button>`);
     if (t === 'bouwschip' && s.owner === UI.me && D.STARBASES[s.starbase.level + 1]) { const nx = D.STARBASES[s.starbase.level + 1]; const w = canUpgrade(G, UI.me, sid); acts.push(`<button class="btn small" data-act="quick" data-kind="upgrade" data-fleet="${f.id}" data-sys="${sid}" ${w ? 'disabled title="' + esc(w) + '"' : ''}>${nx.name} (${nx.cost}${D.RES_ICONS.M})${w ? ' <span class="tiny">– ' + esc(w) + '</span>' : ''}</button>`); }
     if (t === 'kolonie') s.planets.forEach((p, pi) => { if (D.HABITABLE.includes(p.type) && !p.colony) { const w = canColonize(G, UI.me, sid, pi); acts.push(`<button class="btn small" data-act="quick" data-kind="colonize" data-fleet="${f.id}" data-sys="${sid}" data-pi="${pi}" ${w ? 'disabled title="' + esc(w) + '"' : ''}>Koloniseer ${esc(p.name)}</button>`); } });
-    if (t === 'verkenner' && kn !== 2) acts.push(`<button class="btn small" data-act="quick" data-kind="survey" data-fleet="${f.id}" data-sys="${sid}">Verken</button>`);
+    if (t === 'verkenner' && needsSurvey(G, UI.me, sid)) acts.push(`<button class="btn small" data-act="quick" data-kind="survey" data-fleet="${f.id}" data-sys="${sid}">${kn === 2 ? 'Onderzoek anomalie' : 'Verken'}</button>`);
   }
   if (acts.length) h += `<h4>Acties</h4><div class="row">${[...new Set(acts)].join('')}</div>`;
   // fleets
@@ -569,7 +570,7 @@ function orderText(f) {
     if (o.type === 'upgrade') return f.path.length ? 'upgrade bij ' + tn : `upgradet sterrenbasis (${f.prog}/${D.STARBASES[G.systems[o.target].starbase.level + 1] ? D.STARBASES[G.systems[o.target].starbase.level + 1].turns : '?'})`;
     if (o.type === 'colonize') return 'koloniseert ' + esc(G.systems[o.target].planets[o.pi].name);
   }
-  if (f.path.length) return '→ ' + esc(G.systems[f.path[f.path.length - 1]].name) + ` (${Math.ceil(f.path.length / (1 + (G.empires[f.emp].mods.speed || 0)))} b.)`;
+  if (f.path.length) return '→ ' + esc(G.systems[f.path[f.path.length - 1]].name) + ` (${Math.ceil(f.path.length / (1 + (G.empires[f.emp].mods.speed || 0) + (f.ships[0].t === 'verkenner' ? 1 : 0)))} b.)`;
   return '';
 }
 function colonyBlock(c) {
@@ -842,7 +843,7 @@ function showHelp() {
     <h4>Doel</h4><p>Win door <b>de Kroon te wekken</b> (bezit genoeg Kroonrelais en onderzoek De Kroonsleutel), door <b>60% van alle stelsels</b> ${D.RULES.dominationTurns} beurten vast te houden, door <b>alle rivalen te vernietigen</b>, of met de <b>hoogste score</b> na beurt ${D.RULES.turnLimit}.</p>
     <h4>Besturing</h4><p>Sleep om te bewegen, knijp of scroll om te zoomen. Tik op een stelsel voor informatie. Tik op een eigen schip, en daarna op een stelsel, om het te sturen. Burgerschepen tonen dan direct hun mogelijke opdrachten.</p>
     <h4>Grondstoffen</h4><p>${RI('E')} <b>Energie</b> betaalt gebouwen en onderhoud. ${RI('M')} <b>Mineralen</b> bouwen schepen en bases. ${RI('R')} <b>Onderzoek</b> levert technologie. ${RI('I')} <b>Invloed</b> is nodig voor buitenposten, kolonieschepen, edicten en diplomatie.</p>
-    <h4>Uitbreiden</h4><p>Verkenners onthullen planeten en anomalieën. Bouwschepen claimen verkende stelsels met een buitenpost: je krijgt dan de grondstoffen van dat stelsel. Kolonieschepen stichten kolonies op bewoonbare planeten. Planeten van je voorkeurstype zijn extra groot.</p>
+    <h4>Uitbreiden</h4><p>Elk schip dat door een stelsel vliegt, brengt de planeten en grondstoffen in kaart. Verkenners springen 2 stelsels per beurt en zijn de enige schepen die anomalieën kunnen onderzoeken. Bouwschepen claimen verkende stelsels met een buitenpost: je krijgt dan de grondstoffen van dat stelsel. Kolonieschepen stichten kolonies op bewoonbare planeten. Planeten van je voorkeurstype zijn extra groot.</p>
     <h4>Kolonies</h4><p>Bevolking groeit vanzelf en levert grondstoffen. Meer bevolking geeft meer bouwplaatsen. Een scheepswerf bouwt meerdere schepen tegelijk.</p>
     <h4>Oorlog</h4><p>Vloten vechten automatisch als vijanden elkaar ontmoeten. Vernietig sterrenbases en garnizoenen en blijf in het stelsel om het te belegeren. Na enkele beurten is het van jou. Planetaire schilden verlengen een belegering. Veroverde kolonies hebben een tijdje last van onrust.</p>
     <h4>Gevaren</h4><p>Monsters bewaken waardevolle stelsels en laten buit achter. Oude Wachters beschermen de Kroonrelais. Rond beurt ${D.RULES.crisisTurn} opent <b>de Leegte</b> scheuren waaruit steeds sterkere vloten komen. Sluit de scheuren om de nevel te redden.</p>

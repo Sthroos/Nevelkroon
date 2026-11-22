@@ -328,10 +328,14 @@ function moveFleet(G, fleetId, target, keepOrder) {
   f.prog = 0;
   return p;
 }
+/** A scout has work in a system if it is uncharted or still holds an unexplored anomaly. */
+function needsSurvey(G, empId, sysId) {
+  return G.empires[empId].known[sysId] !== 2 || G.systems[sysId].anomaly;
+}
 function orderSurvey(G, fleetId, target) {
   const f = getFleet(G, fleetId);
   if (f.ships[0].t !== 'verkenner') fail('Alleen verkenners kunnen verkennen');
-  if (G.empires[f.emp].known[target] === 2) fail('Al verkend');
+  if (!needsSurvey(G, f.emp, target)) fail('Al verkend, geen anomalie');
   moveFleet(G, fleetId, target, true);
   f.order = { type: 'survey', target };
 }
@@ -440,19 +444,26 @@ function autoExplore(G, f) {
   const d = bfsDist(G, f.sys);
   const taken = new Set(G.fleets.filter(x => x !== f && x.emp === f.emp && x.order && x.order.type === 'survey').map(x => x.order.target));
   const avoid = civAvoid(G, f.emp);
-  let best = null, bestV = Infinity;
+  const cands = [];
   for (const s of G.systems) {
-    if (e.known[s.id] === 2 || taken.has(s.id) || d[s.id] === Infinity) continue;
+    if (!needsSurvey(G, f.emp, s.id) || taken.has(s.id) || d[s.id] === Infinity) continue;
     if (e.isPlayer && !e.known[s.id]) continue;
     if (avoid(s.id)) continue;
-    const v = d[s.id] + rnd(G) * 0.6;
-    if (v < bestV) { bestV = v; best = s.id; }
+    cands.push({ id: s.id, v: d[s.id] + rnd(G) * 0.6 });
   }
-  if (best == null) { f.order = null; f.auto = false; return false; }
-  const p = findPath(G, f.sys, best, knownAvoid(G, f.emp, avoid));
-  if (!p) { f.order = null; return false; }
-  f.path = p; f.order = { type: 'survey', target: best };
-  return true;
+  cands.sort((a, b) => a.v - b.v);
+  for (const c of cands) {
+    const p = findPath(G, f.sys, c.id, knownAvoid(G, f.emp, avoid));
+    if (p) { f.path = p; f.order = { type: 'survey', target: c.id }; return true; }
+  }
+  f.order = null;
+  // Stay on auto while survey work remains somewhere; new systems come into view every turn.
+  const workLeft = G.systems.some(s => needsSurvey(G, f.emp, s.id) && d[s.id] < Infinity && !avoid(s.id));
+  if (!workLeft) {
+    f.auto = false;
+    if (e.isPlayer) log(G, e.id, 'Een verkenner heeft niets meer te verkennen en wacht op orders.', 'info', f.sys);
+  }
+  return false;
 }
 
 // ---------- Diplomacy ----------

@@ -132,7 +132,7 @@ function aiDesiredPower(G, e) {
 function aiShipyards(G, e) {
   const yards = coloniesOf(G, e.id).filter(c => c.buildings.includes('werf') && c.sq.length < shipyardSlots(G, e));
   if (!yards.length) return;
-  const unsurveyed = G.systems.filter(s => e.known[s.id] !== 2).length;
+  const unsurveyed = G.systems.filter(s => needsSurvey(G, e.id, s.id)).length;
   const expansion = aiExpansionTargets(G, e).length;
   const nSys = systemsOf(G, e.id).length;
   const nCol = coloniesOf(G, e.id).length;
