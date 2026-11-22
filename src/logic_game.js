@@ -256,7 +256,7 @@ function completeResearch(G, e, id) {
   e.research.current = null;
   rollTechOptions(G, e);
   const name = id === 'rep' ? 'Doorbraak ' + e.repeat : D.TECH_BY_ID[id].name;
-  log(G, e.id, 'Onderzoek voltooid: ' + name, 'tech');
+  log(G, e.id, 'Onderzoek voltooid: ' + name + ' — ' + (id === 'rep' ? '+5% energie, mineralen en onderzoek' : D.TECH_BY_ID[id].txt), 'tech');
   if (id === 'ph_relay') for (const r of G.relays) if (!e.known[r]) e.known[r] = 1;
   // heal ships to new max is not automatic; new hull applies to repairs
 }

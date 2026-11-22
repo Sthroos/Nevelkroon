@@ -216,7 +216,7 @@ textarea { width: 100%; min-height: 120px; background: rgba(0,0,0,0.35); color: 
 <div id="modal" class="hidden"></div>
 <script>
 'use strict';
-const GAME_VERSION = '1.8 · 2026-11-22 · adcc332';
+const GAME_VERSION = '1.9 · 2026-11-22 · b2919af';
 // ===================== NEVELKROON — statische speldata =====================
 
 const RES_KEYS = ['E', 'M', 'R', 'I'];
@@ -1047,7 +1047,7 @@ function completeResearch(G, e, id) {
   e.research.current = null;
   rollTechOptions(G, e);
   const name = id === 'rep' ? 'Doorbraak ' + e.repeat : D.TECH_BY_ID[id].name;
-  log(G, e.id, 'Onderzoek voltooid: ' + name, 'tech');
+  log(G, e.id, 'Onderzoek voltooid: ' + name + ' — ' + (id === 'rep' ? '+5% energie, mineralen en onderzoek' : D.TECH_BY_ID[id].txt), 'tech');
   if (id === 'ph_relay') for (const r of G.relays) if (!e.known[r]) e.known[r] = 1;
   // heal ships to new max is not automatic; new hull applies to repairs
 }
@@ -3517,6 +3517,7 @@ function onAction(ev) {
     case 'home': act(() => moveFleet(G, +d.fleet, G.empires[UI.me].capital)); break;
     case 'goto': act(() => { moveFleet(G, +d.fleet, +d.sys); AudioFX.sfx('move'); focusSys(+d.sys); toast('Onderweg naar ' + G.systems[+d.sys].name, 'info'); }); break;
     case 'research': showResearch(); break;
+    case 'techInfo': showTechInfo(d.id); break;
     case 'pickTech': act(() => { chooseResearch(G, UI.me, d.id); AudioFX.sfx('select'); }); closeModal(); break;
     case 'diplo': showDiplomacy(); break;
     case 'war': confirmBox(`Oorlog verklaren aan ${G.empires[+d.emp].name}?`, () => act(() => { declareWar(G, UI.me, +d.emp); AudioFX.sfx('war'); showDiplomacy(); })); break;
@@ -3874,9 +3875,75 @@ function showResearch() {
     ${cur ? `<p class="small">Bezig met <b>${esc(D.TECH_BY_ID[cur] ? D.TECH_BY_ID[cur].name : 'Doorbraak')}</b>. Je kunt wisselen zonder voortgang te verliezen.</p>` : '<p class="small" style="color:var(--gold)">Kies een technologie. Onderzoekspunten worden ondertussen gespaard.</p>'}
     <div class="cards">${e.research.options.map(card).join('')}</div>
     <h4 style="margin-top:16px">Onderzocht (${known.length}/${D.TECHS.length}${e.repeat ? ' + ' + e.repeat + ' doorbraken' : ''})</h4>
-    <div class="small">${known.length ? known.map(t => `<span class="slot" style="border-left:3px solid ${D.CAT_COLORS[t.cat]}" title="${esc(t.txt)}">${esc(t.name)}</span>`).join('') : '<span class="dim">Nog niets</span>'}</div>
-    <h4 style="margin-top:12px">Nog te ontdekken</h4>
-    <div class="small dim">${D.TECHS.filter(t => !e.techs[t.id]).map(t => `<span class="slot" style="opacity:${(t.req || []).every(r => e.techs[r]) ? 0.9 : 0.45}" title="${esc(t.txt)}${t.req ? ' · vereist ' + t.req.map(r => D.TECH_BY_ID[r].name).join(', ') : ''}">${esc(t.name)}</span>`).join('')}</div>`);
+    <div class="small">${known.length ? known.map(t => techChip(t, 1)).join('') : '<span class="dim">Nog niets</span>'}</div>
+    <h4 style="margin-top:12px">Nog te ontdekken <span class="dim tiny">(tik voor details)</span></h4>
+    <div class="small dim">${D.TECHS.filter(t => !e.techs[t.id]).map(t => techChip(t, (t.req || []).every(r => e.techs[r]) ? 0.9 : 0.45)).join('')}</div>
+    <h4 style="margin-top:14px">Je bonussen</h4>${bonusTable(e)}`);
+}
+function techChip(t, op) {
+  return `<button class="slot" data-act="techInfo" data-id="${t.id}" style="border:0;border-left:3px solid ${D.CAT_COLORS[t.cat]};opacity:${op};cursor:pointer;color:inherit;font:inherit">${esc(t.name)}</button>`;
+}
+
+const MOD_INFO = {
+  E: ['Energie', 'pct'], M: ['Mineralen', 'pct'], R: ['Onderzoek', 'pct'], I: ['Invloed', 'pct'],
+  weapon: ['Wapenschade', 'pct'], shield: ['Schilden', 'pct'], hull: ['Romp', 'pct'],
+  growth: ['Bevolkingsgroei', 'pct'], maxPop: ['Max. bevolking per planeet', 'pct'], slots: ['Extra bouwplaatsen per kolonie', 'num'],
+  vision: ['Extra zichtbereik (sprongen)', 'num'], anomaly: ['Betere anomalie-uitkomsten', 'pct'], speed: ['Extra sprongen per beurt', 'num'],
+  buildTime: ['Kortere bouwtijd (beurten)', 'num'], shipCost: ['Scheepskosten', 'pct'], buildCost: ['Gebouwkosten', 'pct'],
+  opinion: ['Opinie van andere rijken', 'num'], trade: ['Voordelige marktkoers', 'flag'], freeWar: ['Gratis oorlog verklaren', 'flag'],
+};
+const fmtMod = (k, v) => { const t = MOD_INFO[k] ? MOD_INFO[k][1] : 'num'; return t === 'pct' ? (v > 0 ? '+' : '') + Math.round(v * 100) + '%' : t === 'flag' ? 'ja' : (v > 0 ? '+' : '') + v; };
+/** All sources of each empire modifier: faction, techs, breakthroughs, events, edicts. */
+function modSources(e) {
+  const out = {};
+  const add = (k, v, src) => { if (!v) return; (out[k] = out[k] || []).push({ v, src }); };
+  const f = faction(e);
+  for (const k in f.mods) add(k, f.mods[k], f.short);
+  for (const id in e.techs) { const T = D.TECH_BY_ID[id]; if (T) for (const k in T.eff) add(k, T.eff[k], T.name); }
+  const rep = e.repeat || 0;
+  if (rep) { for (const k of ['E', 'M', 'R']) add(k, rep * 0.05, 'Doorbraken'); for (const k of ['weapon', 'hull']) add(k, rep * 0.03, 'Doorbraken'); }
+  for (const k in (e.bonus || {})) add(k, e.bonus[k], 'Gebeurtenissen');
+  for (const id in (e.edicts || {})) { const E = D.EDICTS[id]; for (const k in E.eff) add(k, E.eff[k], E.name + ' (edict)'); }
+  return out;
+}
+function bonusTable(e) {
+  const src = modSources(e);
+  const keys = Object.keys(MOD_INFO).filter(k => src[k]);
+  if (!keys.length) return '<p class="small dim">Nog geen bonussen.</p>';
+  return `<table class="st">${keys.map(k => `<tr><td>${MOD_INFO[k][0]}</td><td class="pos" style="white-space:nowrap">${fmtMod(k, e.mods[k])}</td><td class="tiny dim">${src[k].map(s => esc(s.src) + ' ' + fmtMod(k, s.v)).join(' · ')}</td></tr>`).join('')}</table>`;
+}
+/** Plain-language explanation of what a modifier means in play, given the empire's current total. */
+function effectLine(k, v, e) {
+  const m = e.mods;
+  switch (k) {
+    case 'vision': return `Je ziet vloten en stelsels tot ${1 + m.vision} sprong${m.vision ? 'en' : ''} rond je gebied (zonder bonus: 1).`;
+    case 'speed': return `Je schepen springen nu ${1 + m.speed} stelsels per beurt, verkenners ${2 + m.speed}.`;
+    case 'slots': return `Elke kolonie heeft ${m.slots} extra bouwplaats${m.slots > 1 ? 'en' : ''}.`;
+    case 'buildTime': return `Gebouwen en schepen zijn ${m.buildTime} beurt${m.buildTime > 1 ? 'en' : ''} sneller klaar.`;
+    case 'anomaly': return `Anomalieën leveren meer op en riskante keuzes gaan vaker goed (totaal ${fmtMod(k, m.anomaly)}).`;
+    case 'opinion': return `Andere rijken waarderen je hoger (totaal ${fmtMod(k, m.opinion)}).`;
+    default: return MOD_INFO[k] ? `${MOD_INFO[k][0]} ${fmtMod(k, v)} (totaal nu ${fmtMod(k, m[k])}).` : '';
+  }
+}
+function showTechInfo(id) {
+  const G = UI.G, e = G.empires[UI.me];
+  const T = D.TECH_BY_ID[id];
+  const have = !!e.techs[id];
+  const unlocks = [
+    ...Object.entries(D.BUILDINGS).filter(([, B]) => B.req === id).map(([, B]) => 'Gebouw: ' + B.name + (B.desc ? ' (' + B.desc + ')' : '')),
+    ...Object.entries(D.SHIPS).filter(([, S]) => S.req === id).map(([t, S]) => { const st = shipStats(G, UI.me, t); return `Schip: ${S.name} (⚔${fmt(st.atk)} ♥${st.hp} ⛨${st.sh})`; }),
+    ...D.STARBASES.filter(sb => sb && sb.req === id).map(sb => 'Sterrenbasis: ' + sb.name),
+    ...(id === 'ph_relay' ? ['Alle Kroonrelais worden zichtbaar op de kaart'] : []),
+    ...(id === 'ph_kroon' ? ['Je kunt de Kroon wekken (Rijk → De Kroon)'] : []),
+    ...D.TECHS.filter(x => (x.req || []).includes(id)).map(x => 'Opent onderzoek: ' + x.name),
+  ];
+  const effects = Object.keys(T.eff).map(k => effectLine(k, T.eff[k], e)).filter(Boolean);
+  openModal(`<div class="mhead"><h2>${esc(T.name)}</h2><button class="btn small close" data-act="research">← Terug</button></div>
+    <div class="small" style="color:${D.CAT_COLORS[T.cat]}">${D.CAT_NAMES[T.cat]} · niveau ${T.tier} · ${have ? '<span class="pos">onderzocht</span>' : 'nog niet onderzocht'}</div>
+    <p>${esc(T.txt)}</p>
+    ${effects.length ? `<h4>${have ? 'Effect in je rijk' : 'Effect na onderzoek'}</h4>${effects.map(x => `<div class="small">• ${esc(x)}</div>`).join('')}` : ''}
+    ${unlocks.length ? `<h4>Ontgrendelt</h4>${unlocks.map(x => `<div class="small">• ${esc(x)}</div>`).join('')}` : ''}
+    ${!have && T.req ? `<h4>Vereist</h4><div class="small">${T.req.map(r => (e.techs[r] ? '✓ ' : '✗ ') + esc(D.TECH_BY_ID[r].name)).join('<br>')}</div>` : ''}`, 'narrow');
 }
 
 function attitude(op) { return op <= -40 ? ['Vijandig', '#ff6b6b'] : op < -10 ? ['Wantrouwig', '#ffb36b'] : op < 20 ? ['Neutraal', '#c9d3ee'] : op < 50 ? ['Vriendelijk', '#8cffc8'] : ['Hartelijk', '#5fffb0']; }
