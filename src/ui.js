@@ -62,6 +62,7 @@ function showTitle() {
         <button class="btn" data-act="settings">Instellingen</button>
       </div>
       <p class="dim tiny" style="text-align:center;margin-top:20px">Tip: gebruik een koptelefoon. De muziek wordt live gegenereerd.</p>
+      <p class="dim tiny" style="text-align:center;opacity:.7">Versie ${esc(GAME_VERSION)}</p>
     </div>`;
 }
 function showSetup() {
@@ -811,7 +812,8 @@ function showMenu() {
       <button class="btn" data-act="help">Hoe speel je?</button>
       <button class="btn" data-act="export">Exporteer / importeer</button>
       <button class="btn danger" data-act="quit">Opslaan en naar hoofdmenu</button>
-    </div>`, 'narrow');
+    </div>
+    <p class="dim tiny" style="text-align:center;margin:12px 0 0">Nevelkroon · versie ${esc(GAME_VERSION)}</p>`, 'narrow');
 }
 function showSettings() {
   openModal(`<div class="mhead"><h2>Instellingen</h2><button class="btn small close" data-act="closeModal">✕</button></div>

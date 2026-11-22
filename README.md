@@ -33,6 +33,8 @@ De bron staat in `src/`. Na een wijziging:
 python3 build.py          # bouwt index.html en build/logic_node.js
 ```
 
+Het versienummer (menu en titelscherm) wordt bij elke build automatisch gezet: `1.<n> · <datum> · <bronhash>`. Hierbij is `n` het aantal commits, plus één als `src/` nog niet-gecommitte wijzigingen heeft (die build wordt dus de volgende commit). De hash verandert bij elke wijziging in `src/`. Bouwen vereist daarom een git-checkout.
+
 | Bestand | Inhoud |
 |---|---|
 | `src/data.js` | Facties, planeten, gebouwen, schepen, technologie, gebeurtenissen, regels |
