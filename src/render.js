@@ -371,8 +371,21 @@ function rDraw(G, now) {
     // owner ring / starbase
     if (s.owner != null) {
       const col = G.empires[s.owner].color;
-      g.strokeStyle = col; g.lineWidth = (s.starbase.level >= 2 ? 2.6 : 1.4) / z;
-      g.beginPath(); g.arc(s.x, s.y, 14 + s.starbase.level * 1.5, 0, Math.PI * 2); g.stroke();
+      const colony = G.colonies.some(c => c.sys === s.id);
+      g.strokeStyle = col;
+      if (colony) {
+        // colony: solid thick ring + filled planet dot
+        g.lineWidth = 3 / z;
+        g.beginPath(); g.arc(s.x, s.y, 14 + s.starbase.level * 1.5, 0, Math.PI * 2); g.stroke();
+        g.fillStyle = col; g.strokeStyle = 'rgba(0,0,0,0.7)'; g.lineWidth = 1.2 / z;
+        g.beginPath(); g.arc(s.x + 13, s.y - 13, 4.5, 0, Math.PI * 2); g.fill(); g.stroke();
+      } else {
+        // outpost: thin dashed ring + hollow square
+        g.lineWidth = 1.3 / z; g.setLineDash([4 / z, 3 / z]);
+        g.beginPath(); g.arc(s.x, s.y, 14 + s.starbase.level * 1.5, 0, Math.PI * 2); g.stroke();
+        g.setLineDash([]);
+        g.lineWidth = 1.4 / z; g.strokeRect(s.x + 9.5, s.y - 16.5, 6, 6);
+      }
       if (s.starbase.level >= 2) {
         g.save(); g.translate(s.x, s.y); g.rotate(t * 0.4);
         g.fillStyle = col;

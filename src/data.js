@@ -98,7 +98,7 @@ const WARSHIPS = ['korvet', 'fregat', 'kruiser', 'slagschip', 'titaan'];
 
 const STARBASES = [
   null,
-  { name: 'Buitenpost', atk: 3, hp: 80, up: 0 },
+  { name: 'Wachtpost', atk: 3, hp: 80, up: 0 },
   { name: 'Sterrenbasis', atk: 18, hp: 380, up: 1.5, cost: 200, turns: 4, req: 'en_starbase' },
   { name: 'Citadel', atk: 55, hp: 1150, up: 4, cost: 500, turns: 6, req: 'en_citadel' },
 ];
@@ -249,7 +249,7 @@ const RULES = {
   outpostCostM: 60, outpostBaseI: 3, outpostPerSystems: 5, outpostTurns: 2,
   warCostI: 25, pactCostI: 10, giftE: 100,
   siegeTurns: 3, shieldSiegeBonus: 3,
-  oreGrowEvery: 8,
+  oreGrowEvery: 8, autoBuildReserveM: 50,
   pirateBases: { klein: 2, middel: 3, groot: 4 }, pirateFirstRaid: 12, pirateRaidMin: 9, pirateRaidMax: 15, pirateMaxRaiders: 2,
   crisisTurn: 125, crisisWaveEvery: 7,
   kroonCostI: 120, kroonCostE: 400, kroonTurns: 15, kroonRelaysNeeded: 3,

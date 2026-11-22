@@ -504,6 +504,7 @@ function systemPanel(sid) {
   const ST = D.STAR_TYPES[s.star];
   let h = `<div class="phead"><span class="dot" style="color:${ST.color === '#000000' ? '#b070ff' : ST.color};background:currentColor"></span><div><h2>${esc(s.name)}</h2><div class="small dim">${ST.name}${s.relay ? ' · <span style="color:#8ff3ff">Kroonrelais</span>' : ''}${s.blight ? ' · <span style="color:#ff6fcf">Verslonden</span>' : ''}</div></div><button class="btn small close" data-act="close">✕</button></div>`;
   h += `<div class="row">${ownerTag(G, s.owner)}`;
+  if (s.owner != null && kn) h += coloniesIn(G, sid).length ? '<span class="tag" style="border-color:var(--mint);color:var(--mint)">● Kolonie</span>' : '<span class="tag" style="border-style:dashed">▫ Buitenpost</span>';
   if (s.owner != null && s.starbase.level) {
     const sb = D.STARBASES[s.starbase.level];
     h += `<span class="tag">${sb.name}</span>`;
@@ -580,11 +581,13 @@ function orderText(f) {
   if (o) {
     const tn = esc(G.systems[o.target].name);
     if (o.type === 'survey') return (f.auto ? 'auto: ' : '') + 'verkent ' + tn;
-    if (o.type === 'outpost') return f.path.length ? 'buitenpost bij ' + tn : `bouwt buitenpost (${f.prog}/${D.RULES.outpostTurns})`;
-    if (o.type === 'upgrade') return f.path.length ? 'upgrade bij ' + tn : `upgradet sterrenbasis (${f.prog}/${D.STARBASES[G.systems[o.target].starbase.level + 1] ? D.STARBASES[G.systems[o.target].starbase.level + 1].turns : '?'})`;
+    const au = f.auto ? 'auto: ' : '';
+    if (o.type === 'outpost') return au + (f.path.length ? 'buitenpost bij ' + tn : `bouwt buitenpost (${f.prog}/${D.RULES.outpostTurns})`);
+    if (o.type === 'upgrade') return au + (f.path.length ? 'upgrade bij ' + tn : `upgradet sterrenbasis (${f.prog}/${D.STARBASES[G.systems[o.target].starbase.level + 1] ? D.STARBASES[G.systems[o.target].starbase.level + 1].turns : '?'})`);
     if (o.type === 'colonize') return 'koloniseert ' + esc(G.systems[o.target].planets[o.pi].name);
   }
   if (f.path.length) return '→ ' + esc(G.systems[f.path[f.path.length - 1]].name) + ` (${Math.ceil(f.path.length / (1 + (G.empires[f.emp].mods.speed || 0) + (f.ships[0].t === 'verkenner' ? 1 : 0)))} b.)`;
+  if (f.auto && f.ships[0].t === 'bouwschip') return 'automatisch: wacht op een betaalbare klus';
   return '';
 }
 function colonyBlock(c) {
@@ -671,6 +674,7 @@ function fleetPanel(f) {
   if (own) {
     h += `<hr><div class="row">`;
     if (f.ships[0].t === 'verkenner') h += `<button class="btn small ${f.auto ? 'primary' : ''}" data-act="auto" data-fleet="${f.id}" data-on="${f.auto ? 0 : 1}">${f.auto ? '✓ Automatisch verkennen' : 'Automatisch verkennen'}</button>`;
+    if (f.ships[0].t === 'bouwschip') h += `<button class="btn small ${f.auto ? 'primary' : ''}" data-act="auto" data-fleet="${f.id}" data-on="${f.auto ? 0 : 1}" title="Upgradet bases bij kolonies en relais, bouwt buitenposten en upgradet daarna overige buitenposten">${f.auto ? '✓ Automatisch bouwen' : 'Automatisch bouwen'}</button>`;
     if (f.path.length || f.order) h += `<button class="btn small" data-act="stop" data-fleet="${f.id}">Stop</button>`;
     if (!civ && f.ships.length > 1) h += `<button class="btn small" data-act="split" data-fleet="${f.id}">Splitsen</button>`;
     if (!civ && G.fleets.filter(x => x.sys === f.sys && x.emp === UI.me && !fleetIsCiv(x)).length > 1) h += `<button class="btn small" data-act="merge" data-sys="${f.sys}">Samenvoegen</button>`;
@@ -924,7 +928,8 @@ function showHelp() {
     <h4>Doel</h4><p>Win door <b>de Kroon te wekken</b> (bezit genoeg Kroonrelais en onderzoek De Kroonsleutel), door <b>60% van alle stelsels</b> ${D.RULES.dominationTurns} beurten vast te houden, door <b>alle rivalen te vernietigen</b>, of met de <b>hoogste score</b> na beurt ${D.RULES.turnLimit}.</p>
     <h4>Besturing</h4><p>Sleep om te bewegen, knijp of scroll om te zoomen. Tik op een stelsel voor informatie. Tik op een eigen schip, en daarna op een stelsel, om het te sturen. Burgerschepen tonen dan direct hun mogelijke opdrachten.</p>
     <h4>Grondstoffen</h4><p>${RI('E')} <b>Energie</b> betaalt gebouwen en onderhoud. ${RI('M')} <b>Mineralen</b> bouwen schepen en bases. ${RI('R')} <b>Onderzoek</b> levert technologie. ${RI('I')} <b>Invloed</b> is nodig voor buitenposten, kolonieschepen, edicten en diplomatie.</p>
-    <h4>Uitbreiden</h4><p>Elk schip dat door een stelsel vliegt, brengt de planeten en grondstoffen in kaart. Verkenners springen 2 stelsels per beurt en zijn de enige schepen die anomalieën kunnen onderzoeken. Bouwschepen claimen verkende stelsels met een buitenpost: je krijgt dan de grondstoffen van dat stelsel. Kolonieschepen stichten kolonies op bewoonbare planeten. Planeten van je voorkeurstype zijn extra groot.</p>
+    <h4>Kaart</h4><p><b>Kolonie</b>: dikke doorgetrokken ring met een gevulde stip ●. <b>Buitenpost</b>: dunne stippelring met een open vierkantje ▫. Streepjes rond de ring tonen een sterrenbasis of citadel. ◆ = bijzonderheid, ? = anomalie.</p>
+    <h4>Uitbreiden</h4><p>Elk schip dat door een stelsel vliegt, brengt de planeten en grondstoffen in kaart. Verkenners springen 2 stelsels per beurt en zijn de enige schepen die anomalieën kunnen onderzoeken. Bouwschepen claimen verkende stelsels met een buitenpost: je krijgt dan de grondstoffen van dat stelsel. Zet een bouwschip op <b>Automatisch bouwen</b> en het upgradet zelf bases en bouwt buitenposten. Kolonieschepen stichten kolonies op bewoonbare planeten. Planeten van je voorkeurstype zijn extra groot.</p>
     <h4>Kolonies</h4><p>Bevolking groeit vanzelf en levert grondstoffen. Meer bevolking geeft meer bouwplaatsen. Een scheepswerf bouwt meerdere schepen tegelijk.</p>
     <h4>Oorlog</h4><p>Vloten vechten automatisch als vijanden elkaar ontmoeten. Vernietig sterrenbases en garnizoenen en blijf in het stelsel om het te belegeren. Na enkele beurten is het van jou. Planetaire schilden verlengen een belegering. Veroverde kolonies hebben een tijdje last van onrust.</p>
     <h4>Gevaren</h4><p>Monsters bewaken waardevolle stelsels en laten buit achter. Verborgen <b>piratenbases</b> sturen vanaf beurt ${D.RULES.pirateFirstRaid} rovers op zwak verdedigde stelsels af: ze plunderen energie en mineralen. Een sterrenbasis of een paar oorlogsschepen houdt ze tegen; een vernietigde basis levert flinke buit op. Oude Wachters beschermen de Kroonrelais. Rond beurt ${D.RULES.crisisTurn} opent <b>de Leegte</b> scheuren waaruit steeds sterkere vloten komen. Sluit de scheuren om de nevel te redden.</p>

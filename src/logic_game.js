@@ -427,9 +427,46 @@ function cancelOrder(G, fleetId) {
 }
 function setAuto(G, fleetId, on) {
   const f = getFleet(G, fleetId);
-  if (f.ships[0].t !== 'verkenner') fail('Automatisch verkennen kan alleen met een verkenner');
+  const t = f.ships[0].t;
+  if (t !== 'verkenner' && t !== 'bouwschip') fail('Automatisch kan alleen met een verkenner of bouwschip');
   f.auto = !!on;
-  if (on && !f.order) autoExplore(G, f);
+  if (on && !f.order && !f.path.length) autoRun(G, f);
+}
+function autoRun(G, f) { return f.ships[0].t === 'bouwschip' ? autoBuild(G, f) : autoExplore(G, f); }
+/**
+ * Idle constructor on auto: upgrade defenses of colonies and relays first, then claim new
+ * outposts, then upgrade remaining outposts. Keeps a small mineral reserve; waits when broke.
+ */
+function autoBuild(G, f) {
+  const e = G.empires[f.emp];
+  const d = bfsDist(G, f.sys);
+  const reserve = D.RULES.autoBuildReserveM;
+  const busy = new Set(G.fleets.filter(x => x !== f && x.emp === f.emp && x.order && (x.order.type === 'outpost' || x.order.type === 'upgrade')).map(x => x.order.target));
+  const avoid = civAvoid(G, f.emp);
+  const reach = (sid) => sid === f.sys || !!findPath(G, f.sys, sid, knownAvoid(G, f.emp, avoid));
+  const upgrades = [], outposts = [];
+  for (const s of G.systems) {
+    if (busy.has(s.id) || d[s.id] === Infinity) continue;
+    if (s.owner === e.id) {
+      const nx = D.STARBASES[s.starbase.level + 1];
+      if (!nx || canUpgrade(G, e.id, s.id) || e.res.M - nx.cost < reserve) continue;
+      const cols = coloniesIn(G, s.id).length;
+      const border = s.lanes.some(n => G.systems[n].owner !== e.id);
+      upgrades.push({ id: s.id, key: cols || s.relay || s.id === e.capital, v: cols * 10 + (s.relay ? 8 : 0) + (s.id === e.capital ? 5 : 0) + (border ? 3 : 0) - d[s.id] * 0.5 });
+    } else if (s.owner == null && !canOutpost(G, e.id, s.id)) {
+      if (e.res.M - D.RULES.outpostCostM < reserve) continue;
+      const habs = s.planets.filter(p => D.HABITABLE.includes(p.type) && !p.colony).length;
+      outposts.push({ id: s.id, v: s.dep.E + s.dep.M + s.dep.R * 1.2 + habs * 2.5 + (s.relay ? 10 : 0) + (s.feats || []).length * 2 - d[s.id] * 1.5 });
+    }
+  }
+  const byV = (a, b) => b.v - a.v;
+  const plan = [...upgrades.filter(u => u.key).sort(byV).map(u => ['upgrade', u.id]), ...outposts.sort(byV).map(o => ['outpost', o.id]), ...upgrades.filter(u => !u.key).sort(byV).map(u => ['upgrade', u.id])];
+  for (const [kind, sid] of plan) {
+    if (!reach(sid)) continue;
+    if (kind === 'upgrade') orderUpgrade(G, f.id, sid); else orderOutpost(G, f.id, sid);
+    return true;
+  }
+  return false; // nothing affordable or reachable now: stay on auto and retry next turn
 }
 function mergeFleets(G, sysId, empId) {
   const fs = G.fleets.filter(f => f.sys === sysId && f.emp === empId && !fleetIsCiv(f));

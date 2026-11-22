@@ -170,6 +170,32 @@ const L_process = (G) => { const ai = G.empires[1]; ai.isPlayer = true; try { L.
   check(G.systems[tgt].starbase.level === 2, `Upgrade tot sterrenbasis (${guard} beurten)`);
 }
 
+// ---------- Constructor on auto: builds outposts, upgrades colony bases, keeps reserve ----------
+{
+  const G = fresh(8);
+  const e = G.empires[0];
+  const con = G.fleets.find(f => f.emp === 0 && f.ships[0].t === 'bouwschip');
+  G.systems.forEach(x => { e.known[x.id] = 2; });
+  e.res.M = 400; e.res.I = 100;
+  L.setAuto(G, con.id, true);
+  let outposts = 0, guard = 0;
+  while (guard++ < 12) { step(G); outposts = G.log.filter(l => l.emp === 0 && /Buitenpost gebouwd/.test(l.text)).length; if (outposts >= 2) break; }
+  check(outposts >= 2 && con.auto, `Automatisch bouwschip bouwt achter elkaar buitenposten (${outposts} in ${guard} beurten)`);
+  e.techs.en_starbase = true; e.res.M = 1000;
+  // only a level-1 colony system to upgrade: make capital already maxed is level 2 -> needs citadel tech, so give a colony
+  const s = G.systems.find(x => x.owner === 0 && x.id !== e.capital);
+  const p = s.planets.findIndex(x => !x.colony);
+  if (p < 0) s.planets.push({ type: 'aards', size: 6, name: s.name + ' X', colony: null, orbit: 30, phase: 0 });
+  const pi = p < 0 ? s.planets.length - 1 : p;
+  G.colonies.push({ id: G.nextId++, emp: 0, sys: s.id, pi, pop: 3, buildings: [], bq: [], sq: [], cap: false, gar: 50 });
+  s.planets[pi].colony = G.colonies[G.colonies.length - 1].id;
+  guard = 0; while (s.starbase.level < 2 && guard++ < 14) step(G);
+  check(s.starbase.level === 2, `Automatisch bouwschip upgradet de base bij een kolonie (${guard} beurten)`);
+  e.res.M = 40; const before = JSON.stringify(con.order);
+  if (!con.order) { step(G); }
+  check(e.res.M >= 0 && (!con.order || JSON.stringify(con.order) === before), 'Automatisch bouwen houdt een mineralenreserve aan (wacht als het te duur is)');
+}
+
 // ---------- Colony ship: colonize and is consumed ----------
 {
   const G = fresh(9);

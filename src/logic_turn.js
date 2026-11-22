@@ -21,7 +21,7 @@ function processTurn(G) {
   crisisPhase(G);
   kroonPhase(G);
   for (const e of G.empires) if (e.alive) updateVision(G, e);
-  for (const f of G.fleets) if (f.auto && !f.order && !f.path.length) autoExplore(G, f);
+  for (const f of G.fleets) if (f.auto && !f.order && !f.path.length) autoRun(G, f);
   contactPhase(G);
   victoryCheck(G);
   for (const e of G.empires) e.score.push(Math.round(scoreOf(G, e)));
