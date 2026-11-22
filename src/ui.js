@@ -355,6 +355,7 @@ function onAction(ev) {
     case 'merge': act(() => { const m = mergeFleets(G, +d.sys, UI.me); selectFleet(m.id); }); break;
     case 'split': act(() => splitFleet(G, +d.fleet)); break;
     case 'home': act(() => moveFleet(G, +d.fleet, G.empires[UI.me].capital)); break;
+    case 'goto': act(() => { moveFleet(G, +d.fleet, +d.sys); AudioFX.sfx('move'); focusSys(+d.sys); toast('Onderweg naar ' + G.systems[+d.sys].name, 'info'); }); break;
     case 'research': showResearch(); break;
     case 'pickTech': act(() => { chooseResearch(G, UI.me, d.id); AudioFX.sfx('select'); }); closeModal(); break;
     case 'diplo': showDiplomacy(); break;
@@ -626,7 +627,7 @@ function civTargets(f, hasLocal) {
     rows = G.systems.filter(s => s.id !== f.sys && s.owner == null && e.known[s.id] === 2 && d[s.id] < Infinity && !G.fleets.some(x => x.sys === s.id && x.emp < 0))
       .sort((a, b) => d[a.id] - d[b.id]).slice(0, 5)
       .map(s => { const w = canOutpost(G, UI.me, s.id); const habs = s.planets.filter(p => D.HABITABLE.includes(p.type) && !p.colony).length;
-        return `<div class="fleetrow"><div class="grow"><b>${esc(s.name)}</b> <span class="tiny dim">${d[s.id]} sprong${d[s.id] > 1 ? 'en' : ''}</span><div class="tiny">${depText(s.dep)}${habs ? ' · ' + habs + ' bewoonbaar' : ''}${s.relay ? ' · <span style="color:#8ff3ff">Relais</span>' : ''}</div></div><button class="btn small ${w ? '' : 'primary'}" data-act="quick" data-kind="outpost" data-fleet="${f.id}" data-sys="${s.id}" ${w ? 'disabled title="' + esc(w) + '"' : ''}>Buitenpost</button></div>`; });
+        return `<div class="fleetrow" data-act="goto" data-fleet="${f.id}" data-sys="${s.id}" title="Vlieg hierheen"><div class="grow"><b>${esc(s.name)}</b> <span class="tiny dim">${d[s.id]} sprong${d[s.id] > 1 ? 'en' : ''} →</span><div class="tiny">${depText(s.dep)}${habs ? ' · ' + habs + ' bewoonbaar' : ''}${s.relay ? ' · <span style="color:#8ff3ff">Relais</span>' : ''}${(s.feats || []).length ? ' · <span style="color:var(--gold)">◆</span>' : ''}</div>${w ? `<div class="tiny" style="color:var(--gold)">${esc(w)}</div>` : ''}</div><button class="btn small ${w ? '' : 'primary'}" data-act="quick" data-kind="outpost" data-fleet="${f.id}" data-sys="${s.id}" ${w ? 'disabled title="' + esc(w) + '"' : ''}>Buitenpost</button></div>`; });
   } else {
     const list = [];
     for (const s of G.systems) {
@@ -634,9 +635,9 @@ function civTargets(f, hasLocal) {
       s.planets.forEach((p, pi) => { if (D.HABITABLE.includes(p.type) && !p.colony && canColonize(G, UI.me, s.id, pi) == null) list.push({ s, p, pi, mp: estMaxPop(G, UI.me, p) }); });
     }
     rows = list.sort((a, b) => (b.mp - d[b.s.id] * 0.8) - (a.mp - d[a.s.id] * 0.8)).slice(0, 5)
-      .map(x => `<div class="fleetrow">${planetBall(x.p)}<div class="grow"><b>${esc(x.p.name)}</b> <span class="tiny dim">${d[x.s.id]} sprong${d[x.s.id] === 1 ? '' : 'en'}</span><div class="tiny">${D.PLANET_TYPES[x.p.type].name} · max ${x.mp} bevolking${faction(e).pref === x.p.type ? ' · <span class="pos">voorkeur</span>' : ''}</div></div><button class="btn small primary" data-act="quick" data-kind="colonize" data-fleet="${f.id}" data-sys="${x.s.id}" data-pi="${x.pi}">Koloniseer</button></div>`);
+      .map(x => `<div class="fleetrow" data-act="goto" data-fleet="${f.id}" data-sys="${x.s.id}" title="Vlieg hierheen">${planetBall(x.p)}<div class="grow"><b>${esc(x.p.name)}</b> <span class="tiny dim">${d[x.s.id]} sprong${d[x.s.id] === 1 ? '' : 'en'} →</span><div class="tiny">${D.PLANET_TYPES[x.p.type].name} · max ${x.mp} bevolking${faction(e).pref === x.p.type ? ' · <span class="pos">voorkeur</span>' : ''}</div></div><button class="btn small primary" data-act="quick" data-kind="colonize" data-fleet="${f.id}" data-sys="${x.s.id}" data-pi="${x.pi}">Koloniseer</button></div>`);
   }
-  if (rows.length) return `<h4>${t === 'bouwschip' ? 'Bouwplekken in de buurt' : 'Kolonisatiedoelen'}</h4>${rows.join('')}`;
+  if (rows.length) return `<h4>${t === 'bouwschip' ? 'Bouwplekken in de buurt' : 'Kolonisatiedoelen'}</h4><div class="tiny dim">Tik op een rij om erheen te vliegen, of op de knop om er direct ${t === 'bouwschip' ? 'te bouwen' : 'te koloniseren'}.</div>${rows.join('')}`;
   if (hasLocal) return '';
   return `<p class="small" style="color:var(--gold);margin-top:10px">${t === 'bouwschip'
     ? 'Nog geen bouwplek beschikbaar. Een buitenpost kan alleen in een onbezet stelsel dat al verkend is. Je verkenners zijn daar mee bezig; meestal kan het na 1–2 beurten.'
