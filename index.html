@@ -216,7 +216,7 @@ textarea { width: 100%; min-height: 120px; background: rgba(0,0,0,0.35); color: 
 <div id="modal" class="hidden"></div>
 <script>
 'use strict';
-const GAME_VERSION = '1.6 · 2026-11-22 · b786a53';
+const GAME_VERSION = '1.7 · 2026-11-22 · 830542f';
 // ===================== NEVELKROON — statische speldata =====================
 
 const RES_KEYS = ['E', 'M', 'R', 'I'];
@@ -405,7 +405,7 @@ const ANOMALIES = [
   { id: 'gaia', title: 'Gaia-echo', text: 'Biologische signalen wijzen op een oud terravormingsproject. Een van de planeten hier kan een paradijs worden.',
     choices: [{ t: 'Activeer de terravormers', fx: { gaia: 1 } }] },
   { id: 'gordel', title: 'Rijke asteroïdengordel', text: 'De gordel in dit stelsel blijkt vol zeldzame metalen te zitten.',
-    choices: [{ t: 'Registreer de vondst', fx: { depM: 3 } }] },
+    choices: [{ t: 'Registreer de vondst (bron +3 ⬢)', fx: { depM: 3 } }] },
   { id: 'tijd', title: 'Tijdsverstoring', text: 'De klokken aan boord lopen terug. Het team keert terug met metingen van… morgen?',
     choices: [{ t: 'Analyseer de metingen', fx: { R: 100 } }, { t: 'Vergeet het snel', fx: { I: 8 } }] },
   { id: 'echo', title: 'Echo van de Kroon', text: 'Een fluisterend signaal toont een kaart: vijf lichtpunten verspreid door de nevel. De Kroonrelais!',
@@ -417,7 +417,7 @@ const ANOMALIES = [
   { id: 'nevel', title: 'Zingende nevel', text: 'Het gas in dit stelsel trilt als een koor. De bemanning voelt zich geïnspireerd.',
     choices: [{ t: 'Neem de klanken op', fx: { I: 18 } }, { t: 'Bestudeer de gasdynamica', fx: { R: 55 } }] },
   { id: 'materie', title: 'Donkere materie', text: 'Een concentratie donkere materie buigt het licht. Een perfecte plek voor onderzoek.',
-    choices: [{ t: 'Plaats meetstations', fx: { depR: 2 } }] },
+    choices: [{ t: 'Plaats meetstations (bron +2 ◈)', fx: { depR: 2 } }] },
   { id: 'artefact', title: 'Fluisterend artefact', text: 'Een zwart artefact spreekt in de dromen van de bemanning. Het belooft kennis — tegen een prijs.',
     choices: [{ t: 'Gebruik het artefact', fx: { modR: 0.1, opinionAll: -10 } }, { t: 'Vernietig het', fx: { E: 50, I: 5 } }] },
   { id: 'bibliotheek', title: 'Voorloperbibliotheek', text: 'Een complete bibliotheek van de Kroonbouwers! De kennis is overweldigend.',
@@ -425,7 +425,7 @@ const ANOMALIES = [
   { id: 'kwallen', title: 'Ruimtekwallen', text: 'Een kudde gigantische ruimtekwallen trekt door het stelsel.',
     choices: [{ t: 'Volg en bestudeer ze', fx: { R: 50 } }, { t: 'Oogst hun gloei-organen', fx: { E: 100, I: -3 } }] },
   { id: 'erts', title: 'Levend erts', text: 'Mineralen die langzaam groeien. Als je ze laat rusten, worden ze meer.',
-    choices: [{ t: 'Delf nu', fx: { M: 120 } }, { t: 'Laat groeien', fx: { depM: 2 } }] },
+    choices: [{ t: 'Delf nu (+120 mineralen)', fx: { M: 120 } }, { t: 'Laat groeien (bron +1 ⬢, groeit tot +5)', fx: { depM: 1, grow: 5 } }] },
 ];
 
 const EMPIRE_EVENTS = [
@@ -467,6 +467,7 @@ const RULES = {
   outpostCostM: 60, outpostBaseI: 3, outpostPerSystems: 5, outpostTurns: 2,
   warCostI: 25, pactCostI: 10, giftE: 100,
   siegeTurns: 3, shieldSiegeBonus: 3,
+  oreGrowEvery: 8,
   pirateBases: { klein: 2, middel: 3, groot: 4 }, pirateFirstRaid: 12, pirateRaidMin: 9, pirateRaidMax: 15, pirateMaxRaiders: 2,
   crisisTurn: 125, crisisWaveEvery: 7,
   kroonCostI: 120, kroonCostE: 400, kroonTurns: 15, kroonRelaysNeeded: 3,
@@ -1422,7 +1423,14 @@ function startKroon(G, empId) {
 }
 
 // ---------- Event resolution ----------
-function applyEffects(G, e, fx, sysId) {
+/** Records a named special feature on a system so the player can find it back later. */
+function addFeature(G, sysId, feat) {
+  const s = G.systems[sysId];
+  s.feats = s.feats || [];
+  const ex = s.feats.find(f => f.name === feat.name);
+  if (ex) { ex.amt += feat.amt; ex.max = Math.max(ex.max || 0, feat.max || 0) || undefined; } else s.feats.push(feat);
+}
+function applyEffects(G, e, fx, sysId, title) {
   const msgs = [];
   for (const k of ['E', 'M', 'R', 'I']) if (fx[k]) {
     let v = fx[k];
@@ -1440,12 +1448,18 @@ function applyEffects(G, e, fx, sysId) {
     const cap = G.colonies.find(c => c.emp === e.id && c.cap) || G.colonies.find(c => c.emp === e.id);
     if (cap) { cap.pop = Math.min(colonyMaxPop(G, cap), cap.pop + fx.pop); msgs.push('+' + fx.pop + ' bevolking'); }
   }
-  if (fx.depM && sysId != null) { const s = G.systems[sysId]; s.extraDep = s.extraDep || {}; s.extraDep.M = (s.extraDep.M || 0) + fx.depM; recomputeDeposits(s); msgs.push('+' + fx.depM + ' mineralen-bron'); }
-  if (fx.depR && sysId != null) { const s = G.systems[sysId]; s.extraDep = s.extraDep || {}; s.extraDep.R = (s.extraDep.R || 0) + fx.depR; recomputeDeposits(s); msgs.push('+' + fx.depR + ' onderzoeksbron'); }
+  for (const k of ['M', 'R']) {
+    const amt = fx['dep' + k];
+    if (!amt || sysId == null) continue;
+    const s = G.systems[sysId];
+    s.extraDep = s.extraDep || {}; s.extraDep[k] = (s.extraDep[k] || 0) + amt; recomputeDeposits(s);
+    addFeature(G, sysId, { name: title || 'Bijzondere bron', res: k, amt, max: fx.grow || undefined, emp: e.id });
+    msgs.push('+' + amt + ' ' + (k === 'M' ? 'mineralen' : 'onderzoeks') + 'bron bij ' + s.name + (fx.grow ? ' (groeit tot +' + fx.grow + ')' : '') + (s.owner === e.id ? '' : '; bouw er een buitenpost om het te gebruiken'));
+  }
   if (fx.gaia && sysId != null) {
     const s = G.systems[sysId];
     const p = s.planets.find(x => !x.colony && x.type !== 'gas' && x.type !== 'asteroid') || s.planets[0];
-    if (p && !p.colony) { p.type = 'gaia'; p.size = Math.max(p.size, 10); recomputeDeposits(s); msgs.push(p.name + ' is nu een Gaia-wereld'); }
+    if (p && !p.colony) { p.type = 'gaia'; p.size = Math.max(p.size, 10); recomputeDeposits(s); addFeature(G, sysId, { name: 'Gaia-wereld', txt: p.name + ' is een paradijswereld', amt: 0 }); msgs.push(p.name + ' is nu een Gaia-wereld'); }
   }
   if (fx.reveal) { for (const r of G.relays) if (!e.known[r]) e.known[r] = 1; msgs.push('Kroonrelais onthuld'); }
   if (fx.modR) { e.bonus.R = (e.bonus.R || 0) + fx.modR; recomputeMods(G, e); msgs.push('+' + Math.round(fx.modR * 100) + '% onderzoek'); }
@@ -1476,8 +1490,8 @@ function resolvePending(G, idx, choice) {
     const A = D.ANOMALIES.find(a => a.id === ev.id);
     const ch = A.choices[choice];
     if (!ch) fail('Ongeldige keuze');
-    res = applyEffects(G, e, ch.fx, ev.sys);
-    log(G, e.id, A.title + ': ' + (res || 'niets gebeurd'), 'event', ev.sys);
+    res = applyEffects(G, e, ch.fx, ev.sys, A.title);
+    log(G, e.id, A.title + ' (' + G.systems[ev.sys].name + '): ' + (res || 'niets gebeurd'), 'event', ev.sys);
   } else if (ev.kind === 'peaceOffer' || ev.kind === 'pactOffer') {
     const accept = choice === 0;
     if (accept && ev.kind === 'peaceOffer' && e.rel[ev.from].war) { setWar(G, e.id, ev.from, false); notifyAll(G, e.name + ' en ' + G.empires[ev.from].name + ' sluiten vrede.', 'peace'); }
@@ -1492,7 +1506,7 @@ function triggerAnomaly(G, e, sysId) {
   if (e.isPlayer) G.pending.push({ kind: 'anomaly', id: A.id, emp: e.id, sys: sysId });
   else {
     const ch = A.choices.length > 1 && rnd(G) < 0.5 ? A.choices[1] : A.choices[0];
-    applyEffects(G, e, ch.fx, sysId);
+    applyEffects(G, e, ch.fx, sysId, A.title);
   }
 }
 
@@ -1515,6 +1529,7 @@ function processTurn(G) {
   economyPhase(G);
   diplomacyPhase(G);
   randomEvents(G);
+  featureGrowth(G);
   crisisPhase(G);
   kroonPhase(G);
   for (const e of G.empires) if (e.alive) updateVision(G, e);
@@ -1938,6 +1953,19 @@ function updateVision(G, e) {
     if (d1[i] <= range || d2[i] <= 1) { vis[i] = 1; if (!e.known[i]) e.known[i] = 1; }
   }
   e.vis = vis;
+}
+
+// ---------- Growing features (e.g. levend erts) ----------
+function featureGrowth(G) {
+  if (G.turn % D.RULES.oreGrowEvery !== 0) return;
+  for (const s of G.systems) for (const f of (s.feats || [])) {
+    if (!f.max || f.amt >= f.max) continue;
+    f.amt++;
+    s.extraDep[f.res] = (s.extraDep[f.res] || 0) + 1;
+    recomputeDeposits(s);
+    const who = s.owner != null ? s.owner : f.emp;
+    if (who != null && who >= 0) log(G, who, f.name + ' bij ' + s.name + ' is gegroeid: nu +' + f.amt + ' ' + D.RES_ICONS[f.res] + (f.amt >= f.max ? ' (maximaal)' : '') + '.', 'event', s.id);
+  }
 }
 
 // ---------- Random empire events ----------
@@ -3085,6 +3113,7 @@ function rDraw(G, now) {
       if (cols.length) badges += '● ' + cols.reduce((a, c) => a + Math.floor(c.pop), 0);
       if (s.relay) badges += (badges ? '  ' : '') + '✧ Relais';
       if (s.anomaly && v && v.known[s.id] === 2) badges += (badges ? '  ' : '') + '? Anomalie';
+      if (s.feats && s.feats.length && (!v || v.known[s.id] === 2)) badges += (badges ? '  ' : '') + '◆';
       if (badges) {
         g.font = `500 ${fs - 2}px system-ui, sans-serif`;
         g.fillStyle = s.relay ? '#8ff3ff' : (s.anomaly && v && v.known[s.id] === 2) ? '#ffd65a' : '#e8ecf8';
@@ -3265,6 +3294,13 @@ function restore(json) {
   const G = JSON.parse(json);
   if (!G || G.version !== 1 || !Array.isArray(G.systems) || !Array.isArray(G.empires)) throw new Error('Ongeldig opslagbestand');
   for (const e of G.empires) recomputeMods(G, e);
+  // saves from before 1.7: label anomaly deposits that were stored without a name
+  for (const s of G.systems) {
+    if (s.feats || !s.extraDep) continue;
+    const lev = s.extraDep.E === 3 && s.extraDep.M === 3 && s.extraDep.R === 3;
+    if (lev) continue;
+    for (const k of ['M', 'R']) if (s.extraDep[k]) addFeature(G, s.id, { name: 'Bijzondere bron (anomalie)', res: k, amt: s.extraDep[k] });
+  }
   G.anim = null;
   return G;
 }
@@ -3641,6 +3677,10 @@ function systemPanel(sid) {
   } else {
     if (s.anomaly) h += `<div class="small" style="color:var(--E);margin-top:6px">? Anomalie gedetecteerd. Alleen een verkenner kan die onderzoeken.</div>`;
     h += `<h4>Grondstoffen</h4><div class="small">${depText(s.dep)}${s.owner == null ? ' <span class="dim">(buitenpost nodig)</span>' : ''}</div>`;
+    if (s.feats && s.feats.length) {
+      h += `<h4>Bijzonderheden</h4>` + s.feats.map(f => `<div class="small" style="color:var(--gold)">◆ ${esc(f.name)}${f.res ? `: +${f.amt} ${RI(f.res)}${f.max ? ` <span class="dim">(groeit elke ${D.RULES.oreGrowEvery} beurten tot +${f.max})</span>` : ''}` : f.txt ? ': ' + esc(f.txt) : ''}</div>`).join('');
+      if (s.owner !== UI.me && s.feats.some(f => f.res)) h += `<div class="tiny dim">Telt pas mee als dit stelsel van jou is.</div>`;
+    }
     h += `<h4>Planeten</h4>`;
     s.planets.forEach((p, pi) => {
       const PT = D.PLANET_TYPES[p.type];

@@ -134,6 +134,13 @@ function restore(json) {
   const G = JSON.parse(json);
   if (!G || G.version !== 1 || !Array.isArray(G.systems) || !Array.isArray(G.empires)) throw new Error('Ongeldig opslagbestand');
   for (const e of G.empires) recomputeMods(G, e);
+  // saves from before 1.7: label anomaly deposits that were stored without a name
+  for (const s of G.systems) {
+    if (s.feats || !s.extraDep) continue;
+    const lev = s.extraDep.E === 3 && s.extraDep.M === 3 && s.extraDep.R === 3;
+    if (lev) continue;
+    for (const k of ['M', 'R']) if (s.extraDep[k]) addFeature(G, s.id, { name: 'Bijzondere bron (anomalie)', res: k, amt: s.extraDep[k] });
+  }
   G.anim = null;
   return G;
 }
@@ -510,6 +517,10 @@ function systemPanel(sid) {
   } else {
     if (s.anomaly) h += `<div class="small" style="color:var(--E);margin-top:6px">? Anomalie gedetecteerd. Alleen een verkenner kan die onderzoeken.</div>`;
     h += `<h4>Grondstoffen</h4><div class="small">${depText(s.dep)}${s.owner == null ? ' <span class="dim">(buitenpost nodig)</span>' : ''}</div>`;
+    if (s.feats && s.feats.length) {
+      h += `<h4>Bijzonderheden</h4>` + s.feats.map(f => `<div class="small" style="color:var(--gold)">◆ ${esc(f.name)}${f.res ? `: +${f.amt} ${RI(f.res)}${f.max ? ` <span class="dim">(groeit elke ${D.RULES.oreGrowEvery} beurten tot +${f.max})</span>` : ''}` : f.txt ? ': ' + esc(f.txt) : ''}</div>`).join('');
+      if (s.owner !== UI.me && s.feats.some(f => f.res)) h += `<div class="tiny dim">Telt pas mee als dit stelsel van jou is.</div>`;
+    }
     h += `<h4>Planeten</h4>`;
     s.planets.forEach((p, pi) => {
       const PT = D.PLANET_TYPES[p.type];

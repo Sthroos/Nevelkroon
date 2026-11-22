@@ -187,7 +187,7 @@ const ANOMALIES = [
   { id: 'gaia', title: 'Gaia-echo', text: 'Biologische signalen wijzen op een oud terravormingsproject. Een van de planeten hier kan een paradijs worden.',
     choices: [{ t: 'Activeer de terravormers', fx: { gaia: 1 } }] },
   { id: 'gordel', title: 'Rijke asteroïdengordel', text: 'De gordel in dit stelsel blijkt vol zeldzame metalen te zitten.',
-    choices: [{ t: 'Registreer de vondst', fx: { depM: 3 } }] },
+    choices: [{ t: 'Registreer de vondst (bron +3 ⬢)', fx: { depM: 3 } }] },
   { id: 'tijd', title: 'Tijdsverstoring', text: 'De klokken aan boord lopen terug. Het team keert terug met metingen van… morgen?',
     choices: [{ t: 'Analyseer de metingen', fx: { R: 100 } }, { t: 'Vergeet het snel', fx: { I: 8 } }] },
   { id: 'echo', title: 'Echo van de Kroon', text: 'Een fluisterend signaal toont een kaart: vijf lichtpunten verspreid door de nevel. De Kroonrelais!',
@@ -199,7 +199,7 @@ const ANOMALIES = [
   { id: 'nevel', title: 'Zingende nevel', text: 'Het gas in dit stelsel trilt als een koor. De bemanning voelt zich geïnspireerd.',
     choices: [{ t: 'Neem de klanken op', fx: { I: 18 } }, { t: 'Bestudeer de gasdynamica', fx: { R: 55 } }] },
   { id: 'materie', title: 'Donkere materie', text: 'Een concentratie donkere materie buigt het licht. Een perfecte plek voor onderzoek.',
-    choices: [{ t: 'Plaats meetstations', fx: { depR: 2 } }] },
+    choices: [{ t: 'Plaats meetstations (bron +2 ◈)', fx: { depR: 2 } }] },
   { id: 'artefact', title: 'Fluisterend artefact', text: 'Een zwart artefact spreekt in de dromen van de bemanning. Het belooft kennis — tegen een prijs.',
     choices: [{ t: 'Gebruik het artefact', fx: { modR: 0.1, opinionAll: -10 } }, { t: 'Vernietig het', fx: { E: 50, I: 5 } }] },
   { id: 'bibliotheek', title: 'Voorloperbibliotheek', text: 'Een complete bibliotheek van de Kroonbouwers! De kennis is overweldigend.',
@@ -207,7 +207,7 @@ const ANOMALIES = [
   { id: 'kwallen', title: 'Ruimtekwallen', text: 'Een kudde gigantische ruimtekwallen trekt door het stelsel.',
     choices: [{ t: 'Volg en bestudeer ze', fx: { R: 50 } }, { t: 'Oogst hun gloei-organen', fx: { E: 100, I: -3 } }] },
   { id: 'erts', title: 'Levend erts', text: 'Mineralen die langzaam groeien. Als je ze laat rusten, worden ze meer.',
-    choices: [{ t: 'Delf nu', fx: { M: 120 } }, { t: 'Laat groeien', fx: { depM: 2 } }] },
+    choices: [{ t: 'Delf nu (+120 mineralen)', fx: { M: 120 } }, { t: 'Laat groeien (bron +1 ⬢, groeit tot +5)', fx: { depM: 1, grow: 5 } }] },
 ];
 
 const EMPIRE_EVENTS = [
@@ -249,6 +249,7 @@ const RULES = {
   outpostCostM: 60, outpostBaseI: 3, outpostPerSystems: 5, outpostTurns: 2,
   warCostI: 25, pactCostI: 10, giftE: 100,
   siegeTurns: 3, shieldSiegeBonus: 3,
+  oreGrowEvery: 8,
   pirateBases: { klein: 2, middel: 3, groot: 4 }, pirateFirstRaid: 12, pirateRaidMin: 9, pirateRaidMax: 15, pirateMaxRaiders: 2,
   crisisTurn: 125, crisisWaveEvery: 7,
   kroonCostI: 120, kroonCostE: 400, kroonTurns: 15, kroonRelaysNeeded: 3,

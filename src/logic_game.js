@@ -632,7 +632,14 @@ function startKroon(G, empId) {
 }
 
 // ---------- Event resolution ----------
-function applyEffects(G, e, fx, sysId) {
+/** Records a named special feature on a system so the player can find it back later. */
+function addFeature(G, sysId, feat) {
+  const s = G.systems[sysId];
+  s.feats = s.feats || [];
+  const ex = s.feats.find(f => f.name === feat.name);
+  if (ex) { ex.amt += feat.amt; ex.max = Math.max(ex.max || 0, feat.max || 0) || undefined; } else s.feats.push(feat);
+}
+function applyEffects(G, e, fx, sysId, title) {
   const msgs = [];
   for (const k of ['E', 'M', 'R', 'I']) if (fx[k]) {
     let v = fx[k];
@@ -650,12 +657,18 @@ function applyEffects(G, e, fx, sysId) {
     const cap = G.colonies.find(c => c.emp === e.id && c.cap) || G.colonies.find(c => c.emp === e.id);
     if (cap) { cap.pop = Math.min(colonyMaxPop(G, cap), cap.pop + fx.pop); msgs.push('+' + fx.pop + ' bevolking'); }
   }
-  if (fx.depM && sysId != null) { const s = G.systems[sysId]; s.extraDep = s.extraDep || {}; s.extraDep.M = (s.extraDep.M || 0) + fx.depM; recomputeDeposits(s); msgs.push('+' + fx.depM + ' mineralen-bron'); }
-  if (fx.depR && sysId != null) { const s = G.systems[sysId]; s.extraDep = s.extraDep || {}; s.extraDep.R = (s.extraDep.R || 0) + fx.depR; recomputeDeposits(s); msgs.push('+' + fx.depR + ' onderzoeksbron'); }
+  for (const k of ['M', 'R']) {
+    const amt = fx['dep' + k];
+    if (!amt || sysId == null) continue;
+    const s = G.systems[sysId];
+    s.extraDep = s.extraDep || {}; s.extraDep[k] = (s.extraDep[k] || 0) + amt; recomputeDeposits(s);
+    addFeature(G, sysId, { name: title || 'Bijzondere bron', res: k, amt, max: fx.grow || undefined, emp: e.id });
+    msgs.push('+' + amt + ' ' + (k === 'M' ? 'mineralen' : 'onderzoeks') + 'bron bij ' + s.name + (fx.grow ? ' (groeit tot +' + fx.grow + ')' : '') + (s.owner === e.id ? '' : '; bouw er een buitenpost om het te gebruiken'));
+  }
   if (fx.gaia && sysId != null) {
     const s = G.systems[sysId];
     const p = s.planets.find(x => !x.colony && x.type !== 'gas' && x.type !== 'asteroid') || s.planets[0];
-    if (p && !p.colony) { p.type = 'gaia'; p.size = Math.max(p.size, 10); recomputeDeposits(s); msgs.push(p.name + ' is nu een Gaia-wereld'); }
+    if (p && !p.colony) { p.type = 'gaia'; p.size = Math.max(p.size, 10); recomputeDeposits(s); addFeature(G, sysId, { name: 'Gaia-wereld', txt: p.name + ' is een paradijswereld', amt: 0 }); msgs.push(p.name + ' is nu een Gaia-wereld'); }
   }
   if (fx.reveal) { for (const r of G.relays) if (!e.known[r]) e.known[r] = 1; msgs.push('Kroonrelais onthuld'); }
   if (fx.modR) { e.bonus.R = (e.bonus.R || 0) + fx.modR; recomputeMods(G, e); msgs.push('+' + Math.round(fx.modR * 100) + '% onderzoek'); }
@@ -686,8 +699,8 @@ function resolvePending(G, idx, choice) {
     const A = D.ANOMALIES.find(a => a.id === ev.id);
     const ch = A.choices[choice];
     if (!ch) fail('Ongeldige keuze');
-    res = applyEffects(G, e, ch.fx, ev.sys);
-    log(G, e.id, A.title + ': ' + (res || 'niets gebeurd'), 'event', ev.sys);
+    res = applyEffects(G, e, ch.fx, ev.sys, A.title);
+    log(G, e.id, A.title + ' (' + G.systems[ev.sys].name + '): ' + (res || 'niets gebeurd'), 'event', ev.sys);
   } else if (ev.kind === 'peaceOffer' || ev.kind === 'pactOffer') {
     const accept = choice === 0;
     if (accept && ev.kind === 'peaceOffer' && e.rel[ev.from].war) { setWar(G, e.id, ev.from, false); notifyAll(G, e.name + ' en ' + G.empires[ev.from].name + ' sluiten vrede.', 'peace'); }
@@ -702,6 +715,6 @@ function triggerAnomaly(G, e, sysId) {
   if (e.isPlayer) G.pending.push({ kind: 'anomaly', id: A.id, emp: e.id, sys: sysId });
   else {
     const ch = A.choices.length > 1 && rnd(G) < 0.5 ? A.choices[1] : A.choices[0];
-    applyEffects(G, e, ch.fx, sysId);
+    applyEffects(G, e, ch.fx, sysId, A.title);
   }
 }

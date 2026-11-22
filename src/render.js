@@ -455,6 +455,7 @@ function rDraw(G, now) {
       if (cols.length) badges += '● ' + cols.reduce((a, c) => a + Math.floor(c.pop), 0);
       if (s.relay) badges += (badges ? '  ' : '') + '✧ Relais';
       if (s.anomaly && v && v.known[s.id] === 2) badges += (badges ? '  ' : '') + '? Anomalie';
+      if (s.feats && s.feats.length && (!v || v.known[s.id] === 2)) badges += (badges ? '  ' : '') + '◆';
       if (badges) {
         g.font = `500 ${fs - 2}px system-ui, sans-serif`;
         g.fillStyle = s.relay ? '#8ff3ff' : (s.anomaly && v && v.known[s.id] === 2) ? '#ffd65a' : '#e8ecf8';

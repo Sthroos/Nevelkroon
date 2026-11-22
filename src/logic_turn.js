@@ -17,6 +17,7 @@ function processTurn(G) {
   economyPhase(G);
   diplomacyPhase(G);
   randomEvents(G);
+  featureGrowth(G);
   crisisPhase(G);
   kroonPhase(G);
   for (const e of G.empires) if (e.alive) updateVision(G, e);
@@ -440,6 +441,19 @@ function updateVision(G, e) {
     if (d1[i] <= range || d2[i] <= 1) { vis[i] = 1; if (!e.known[i]) e.known[i] = 1; }
   }
   e.vis = vis;
+}
+
+// ---------- Growing features (e.g. levend erts) ----------
+function featureGrowth(G) {
+  if (G.turn % D.RULES.oreGrowEvery !== 0) return;
+  for (const s of G.systems) for (const f of (s.feats || [])) {
+    if (!f.max || f.amt >= f.max) continue;
+    f.amt++;
+    s.extraDep[f.res] = (s.extraDep[f.res] || 0) + 1;
+    recomputeDeposits(s);
+    const who = s.owner != null ? s.owner : f.emp;
+    if (who != null && who >= 0) log(G, who, f.name + ' bij ' + s.name + ' is gegroeid: nu +' + f.amt + ' ' + D.RES_ICONS[f.res] + (f.amt >= f.max ? ' (maximaal)' : '') + '.', 'event', s.id);
+  }
 }
 
 // ---------- Random empire events ----------
