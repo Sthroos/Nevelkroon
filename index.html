@@ -115,7 +115,7 @@ hr { border: 0; border-top: 1px solid var(--line); margin: 10px 0; width: 100%; 
 #leftBtns { position: fixed; left: 12px; bottom: calc(16px + var(--safe-b)); z-index: 9; display: flex; flex-direction: column; gap: 8px; }
 
 /* ---------- Toasts ---------- */
-#toasts { position: fixed; left: 12px; top: calc(66px + var(--safe-t)); z-index: 45; display: flex; flex-direction: column; gap: 6px; max-width: min(420px, 70vw); pointer-events: none; }
+#toasts { position: fixed; left: 12px; top: calc(66px + var(--safe-t)); z-index: 12; display: flex; flex-direction: column; gap: 6px; max-width: min(420px, 70vw); pointer-events: none; }
 .toast { background: var(--bg); border: 1px solid var(--line2); border-left: 4px solid var(--mint); border-radius: 10px; padding: 7px 11px; font-size: 13px;
   animation: tin .3s ease-out; box-shadow: 0 6px 20px rgba(0,0,0,0.45); pointer-events: auto; cursor: pointer; }
 .toast.war, .toast.combat { border-left-color: var(--red); }
@@ -123,6 +123,12 @@ hr { border: 0; border-top: 1px solid var(--line); margin: 10px 0; width: 100%; 
 .toast.big { border-left-color: var(--gold); }
 .toast.tech { border-left-color: var(--R); }
 .toast.err { border-left-color: var(--red); background: rgba(60, 10, 10, 0.92); }
+.note { display: flex; gap: 8px; align-items: flex-start; touch-action: pan-y; user-select: none; }
+.note .nx { opacity: .45; font-size: 12px; padding: 0 2px; }
+.note:hover .nx { opacity: .9; }
+.noteBar { display: flex; gap: 8px; align-items: center; font-size: 12px; color: var(--dim); pointer-events: auto; }
+#flash { position: fixed; left: 50%; transform: translateX(-50%); top: calc(64px + var(--safe-t)); z-index: 46; display: flex; flex-direction: column; gap: 6px; align-items: center; pointer-events: none; width: min(420px, 90vw); }
+#flash .toast { text-align: center; }
 @keyframes tin { from { opacity: 0; transform: translateX(-20px); } to { opacity: 1; transform: none; } }
 
 /* ---------- Modal ---------- */
@@ -190,6 +196,8 @@ textarea { width: 100%; min-height: 120px; background: rgba(0,0,0,0.35); color: 
   #endturn { width: 80px; height: 80px; }
   #chips { right: 104px; }
   #toasts { top: calc(108px + var(--safe-t)); max-width: 86vw; }
+  #flash { top: auto; bottom: calc(118px + var(--safe-b)); }
+  body.panel-open #flash { bottom: calc(50vh + 12px); }
   .mbox { padding: 14px; border-radius: 14px; }
   .cards { grid-template-columns: 1fr; }
   .setup .cards { grid-template-columns: 1fr 1fr; }
@@ -212,11 +220,12 @@ textarea { width: 100%; min-height: 120px; background: rgba(0,0,0,0.35); color: 
   </div>
 </div>
 <div id="toasts"></div>
+<div id="flash"></div>
 <div id="title"></div>
 <div id="modal" class="hidden"></div>
 <script>
 'use strict';
-const GAME_VERSION = '1.10 · 2026-11-22 · 105e8fd';
+const GAME_VERSION = '1.11 · 2026-11-22 · 090d7f5';
 // ===================== NEVELKROON — statische speldata =====================
 
 const RES_KEYS = ['E', 'M', 'R', 'I'];
@@ -3212,7 +3221,7 @@ function rFocus(x, y, z) { R.target = { x, y, z: z || null }; }
 
 const SAVE_KEY = 'nevelkroon_save_v1';
 const SET_KEY = 'nevelkroon_settings_v1';
-const UI = { G: null, demo: null, me: 0, selSys: null, selFleet: null, busy: false, logIdx: 0, tab: 'overzicht', settings: { music: 0.55, sfx: 0.75, autosave: true }, setup: null, idleCycle: 0, buildCycle: 0 };
+const UI = { notes: [], noteSeq: 0, G: null, demo: null, me: 0, selSys: null, selFleet: null, busy: false, logIdx: 0, tab: 'overzicht', settings: { music: 0.55, sfx: 0.75, autosave: true }, setup: null, idleCycle: 0, buildCycle: 0 };
 const $ = (s) => document.querySelector(s);
 const esc = (s) => String(s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 const fmt = (n) => { const a = Math.abs(n); return (a >= 10000 ? (n / 1000).toFixed(1) + 'k' : a >= 100 ? Math.round(n).toString() : (Math.round(n * 10) / 10).toString()); };
@@ -3258,6 +3267,7 @@ function showTitle() {
   }
   R.viewer = -1; R.selSys = R.selFleet = null; R.terrKey = '';
   $('#hud').classList.add('hidden');
+  UI.notes = []; renderNotes();
   const hasSave = !!load(SAVE_KEY);
   $('#title').classList.remove('hidden');
   $('#title').innerHTML = `
@@ -3324,6 +3334,7 @@ function enterGame() {
   R.viewer = UI.me; R.terrKey = ''; R.bgFor = null; R.fx = []; R.anim = null;
   UI.selSys = UI.selFleet = null;
   UI.logIdx = G.log.length;
+  UI.notes = []; UI.logSeenIdx = G.log.length; renderNotes();
   $('#title').classList.add('hidden');
   $('#hud').classList.remove('hidden');
   const cap = G.systems[G.empires[UI.me].capital];
@@ -3581,9 +3592,11 @@ function onAction(ev) {
     case 'trade': act(() => { marketTrade(G, UI.me, d.from, +d.amt); AudioFX.sfx('click'); showEmpire('markt'); }); break;
     case 'kroon': confirmBox('De Kroon wekken? Alle andere rijken zullen je de oorlog verklaren.', () => act(() => { startKroon(G, UI.me); AudioFX.sfx('crisis'); closeModal(); })); break;
     case 'log': showLog(); break;
+    case 'logFilter': showLog(d.f); break;
     case 'menu': showMenu(); break;
-    case 'choice': { const r = act(() => resolvePending(G, +d.idx, +d.ch)); closeModal(); if (r) toast(r, 'event'); if (G.pending.length) setTimeout(showPending, 200); break; }
+    case 'choice': { const ev = G.pending[+d.idx]; const r = act(() => resolvePending(G, +d.idx, +d.ch)); closeModal(); if (r) note(r, 'event', ev && ev.sys); if (G.pending.length) setTimeout(showPending, 200); break; }
     case 'focuscap': focusCapital(); break;
+    case 'clearNotes': UI.notes = []; renderNotes(); break;
     case 'zoomin': zoomAt(R.W / 2, R.H / 2, R.cam.z * 1.3); break;
     case 'zoomout': zoomAt(R.W / 2, R.H / 2, R.cam.z / 1.3); break;
     case 'cycleIdle': cycleIdle(); break;
@@ -4090,11 +4103,32 @@ function drawScoreChart(cv) {
   g.fillStyle = '#94a0c4'; g.fillText('beurt ' + n, W - 60, H - 8);
 }
 
-function showLog() {
+const LOG_FILTERS = [
+  ['alles', 'Alles', null],
+  ['oorlog', 'Oorlog', ['war', 'combat', 'peace', 'crisis']],
+  ['onderzoek', 'Onderzoek', ['tech']],
+  ['bouw', 'Bouw', ['build', 'colony']],
+  ['gebeurtenis', 'Gebeurtenissen', ['event', 'loot', 'contact', 'big', 'info']],
+];
+function showLog(filter) {
   const G = UI.G;
-  const lines = G.log.filter(l => l.emp === UI.me || l.emp === -1).slice(-150).reverse();
+  UI.logFilter = filter || UI.logFilter || 'alles';
+  const F = LOG_FILTERS.find(f => f[0] === UI.logFilter);
+  const seen = UI.logSeenIdx || 0;
+  const all = G.log.map((l, i) => ({ ...l, i })).filter(l => l.emp === UI.me || l.emp === -1);
+  const lines = all.filter(l => !F[2] || F[2].includes(l.type)).slice(-300).reverse();
+  let html = '', lastTurn = null;
+  for (const l of lines) {
+    if (l.turn !== lastTurn) { html += `<h4 style="margin-top:10px">Beurt ${l.turn}</h4>`; lastTurn = l.turn; }
+    const link = l.sys != null && G.empires[UI.me].known[l.sys];
+    html += `<div class="logline ${l.type}" ${link ? `data-act="selsys" data-id="${l.sys}"` : ''}>${l.i >= seen ? '<span class="tag" style="color:var(--gold);border-color:var(--gold);margin-right:6px">nieuw</span>' : ''}${esc(l.text)}${link ? ' <span class="dim tiny">→</span>' : ''}</div>`;
+  }
   openModal(`<div class="mhead"><h2>☰ Logboek</h2><button class="btn small close" data-act="closeModal">✕</button></div>
-    ${lines.map(l => `<div class="logline" ${l.sys != null && G.empires[UI.me].known[l.sys] ? `data-act="selsys" data-id="${l.sys}"` : ''}><span class="t">B${l.turn}</span>${esc(l.text)}</div>`).join('') || '<p class="dim">Nog niets gebeurd.</p>'}`);
+    <div class="tabs">${LOG_FILTERS.map(([k, n, types]) => `<button class="btn small ${UI.logFilter === k ? 'on' : ''}" data-act="logFilter" data-f="${k}">${n} <span class="dim tiny">${types ? all.filter(l => types.includes(l.type)).length : all.length}</span></button>`).join('')}</div>
+    <div class="tiny dim">Tik op een regel met → om naar dat stelsel te gaan.</div>
+    ${html || '<p class="dim">Nog niets in deze categorie.</p>'}`);
+  UI.logSeenIdx = G.log.length;
+  renderNotes();
 }
 function showMenu() {
   openModal(`<div class="mhead"><h2>Menu</h2><button class="btn small close" data-act="closeModal">✕</button></div>
@@ -4198,14 +4232,14 @@ function afterTurn(prevLog) {
   UI.busy = false;
   const fresh = G.log.slice(prevLog).filter(l => l.emp === UI.me || l.emp === -1);
   const types = new Set(fresh.map(l => l.type));
-  let shown = 0;
-  const maxT = window.innerWidth <= 760 ? 3 : 6;
   const prio = (l) => ({ big: 0, crisis: 0, war: 1, combat: 1, peace: 2, colony: 2, tech: 3, event: 3, loot: 3, contact: 3 }[l.type] ?? 5);
-  for (const l of fresh.slice().sort((a, b) => prio(a) - prio(b))) { if (shown++ < maxT) toast(l.text, l.type, l.sys); }
+  for (const l of fresh.slice().sort((a, b) => prio(b) - prio(a))) note(l.text, l.type, l.sys); // unshift: highest priority ends on top
   const intruders = G.fleets.filter(f => f.emp !== UI.me && (f.emp !== -1 || f.raider) && G.systems[f.sys].owner === UI.me && hostile(G, f.emp, UI.me) && fleetArmed(G, f));
   if (intruders.length) {
     const s0 = G.systems[intruders[0].sys];
-    toast('⚠ Vijandelijke vloot in ' + s0.name + (intruders.length > 1 ? ' en ' + (intruders.length - 1) + ' andere stelsel(s)' : '') + '!', 'war', s0.id);
+    const msg = '⚠ Vijandelijke vloot in ' + s0.name + (intruders.length > 1 ? ' en ' + (intruders.length - 1) + ' andere stelsel(s)' : '') + '!';
+    log(G, UI.me, msg, 'war', s0.id);
+    note(msg, 'war', s0.id);
     AudioFX.sfx('alert');
   }
   if (types.has('crisis')) AudioFX.sfx('crisis');
@@ -4237,15 +4271,57 @@ function showEnd() {
   drawScoreChart($('#scoreChart'));
 }
 
-// ---------- Toasts ----------
-function toast(text, type, sys) {
+// ---------- Toasts (transient) and notifications (stay until dismissed) ----------
+/** Short-lived feedback (errors, confirmations). Fades by itself. */
+function toast(text, type) {
   const t = document.createElement('div');
   t.className = 'toast ' + (type || '');
   t.textContent = text;
-  if (sys != null && UI.G) t.addEventListener('click', () => { selectSystem(sys); focusSys(sys); });
-  $('#toasts').appendChild(t);
-  setTimeout(() => { t.style.transition = 'opacity .5s'; t.style.opacity = '0'; setTimeout(() => t.remove(), 500); }, type === 'err' ? 2600 : 5200);
-  while ($('#toasts').children.length > 7) $('#toasts').firstChild.remove();
+  $('#flash').appendChild(t);
+  setTimeout(() => { t.style.transition = 'opacity .5s'; t.style.opacity = '0'; setTimeout(() => t.remove(), 500); }, type === 'err' ? 2800 : 2400);
+  while ($('#flash').children.length > 3) $('#flash').firstChild.remove();
+}
+/** Turn notification: stays until tapped or swiped away. */
+function note(text, type, sys) {
+  UI.notes.unshift({ id: ++UI.noteSeq, text, type: type || 'info', sys: sys == null ? null : sys });
+  if (UI.notes.length > 60) UI.notes.length = 60;
+  renderNotes();
+}
+function unreadCount() { const G = UI.G; if (!G) return 0; let n = 0; for (let i = UI.logSeenIdx || 0; i < G.log.length; i++) if (G.log[i].emp === UI.me || G.log[i].emp === -1) n++; return n; }
+function dismissNote(id) { UI.notes = UI.notes.filter(n => n.id !== id); renderNotes(); }
+function renderNotes() {
+  const box = $('#toasts');
+  const max = window.innerWidth <= 760 ? 3 : 6;
+  const shown = UI.notes.slice(0, max);
+  const rest = UI.notes.length - shown.length;
+  box.innerHTML = shown.map(n => `<div class="toast note ${n.type}" data-note="${n.id}"><span class="grow">${esc(n.text)}</span><span class="nx" aria-label="Wegdoen">✕</span></div>`).join('')
+    + (UI.G ? `<div class="noteBar">${rest > 0 ? `<span>+${rest} meer</span>` : ''}<button class="btn small" data-act="log">☰ Logboek${unreadCount() ? ' (' + unreadCount() + ' nieuw)' : ''}</button>${UI.notes.length > 1 ? '<button class="btn small" data-act="clearNotes">Alles wissen</button>' : ''}</div>` : '');
+  for (const el of box.querySelectorAll('.note')) bindNote(el);
+}
+function bindNote(el) {
+  const id = +el.dataset.note;
+  let x0 = null, y0 = 0, dx = 0;
+  el.addEventListener('pointerdown', (e) => { x0 = e.clientX; y0 = e.clientY; dx = 0; el.setPointerCapture(e.pointerId); el.style.transition = 'none'; });
+  el.addEventListener('pointermove', (e) => {
+    if (x0 == null) return;
+    dx = e.clientX - x0;
+    if (Math.abs(dx) > Math.abs(e.clientY - y0)) { el.style.transform = `translateX(${dx}px)`; el.style.opacity = String(Math.max(0.2, 1 - Math.abs(dx) / 220)); }
+  });
+  const end = (e) => {
+    if (x0 == null) return;
+    const moved = Math.abs(dx);
+    x0 = null;
+    el.style.transition = 'transform .2s, opacity .2s';
+    if (moved > 70) { el.style.transform = `translateX(${dx > 0 ? 420 : -420}px)`; el.style.opacity = '0'; setTimeout(() => dismissNote(id), 180); return; }
+    el.style.transform = ''; el.style.opacity = '';
+    if (moved < 8 && e.type === 'pointerup') {
+      const n = UI.notes.find(x => x.id === id);
+      dismissNote(id);
+      if (n && n.sys != null && UI.G && !e.target.classList.contains('nx')) { selectSystem(n.sys); focusSys(n.sys); }
+    }
+  };
+  el.addEventListener('pointerup', end);
+  el.addEventListener('pointercancel', end);
 }
 
 window.addEventListener('load', boot);

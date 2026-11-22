@@ -108,7 +108,7 @@ hr { border: 0; border-top: 1px solid var(--line); margin: 10px 0; width: 100%; 
 #leftBtns { position: fixed; left: 12px; bottom: calc(16px + var(--safe-b)); z-index: 9; display: flex; flex-direction: column; gap: 8px; }
 
 /* ---------- Toasts ---------- */
-#toasts { position: fixed; left: 12px; top: calc(66px + var(--safe-t)); z-index: 45; display: flex; flex-direction: column; gap: 6px; max-width: min(420px, 70vw); pointer-events: none; }
+#toasts { position: fixed; left: 12px; top: calc(66px + var(--safe-t)); z-index: 12; display: flex; flex-direction: column; gap: 6px; max-width: min(420px, 70vw); pointer-events: none; }
 .toast { background: var(--bg); border: 1px solid var(--line2); border-left: 4px solid var(--mint); border-radius: 10px; padding: 7px 11px; font-size: 13px;
   animation: tin .3s ease-out; box-shadow: 0 6px 20px rgba(0,0,0,0.45); pointer-events: auto; cursor: pointer; }
 .toast.war, .toast.combat { border-left-color: var(--red); }
@@ -116,6 +116,12 @@ hr { border: 0; border-top: 1px solid var(--line); margin: 10px 0; width: 100%; 
 .toast.big { border-left-color: var(--gold); }
 .toast.tech { border-left-color: var(--R); }
 .toast.err { border-left-color: var(--red); background: rgba(60, 10, 10, 0.92); }
+.note { display: flex; gap: 8px; align-items: flex-start; touch-action: pan-y; user-select: none; }
+.note .nx { opacity: .45; font-size: 12px; padding: 0 2px; }
+.note:hover .nx { opacity: .9; }
+.noteBar { display: flex; gap: 8px; align-items: center; font-size: 12px; color: var(--dim); pointer-events: auto; }
+#flash { position: fixed; left: 50%; transform: translateX(-50%); top: calc(64px + var(--safe-t)); z-index: 46; display: flex; flex-direction: column; gap: 6px; align-items: center; pointer-events: none; width: min(420px, 90vw); }
+#flash .toast { text-align: center; }
 @keyframes tin { from { opacity: 0; transform: translateX(-20px); } to { opacity: 1; transform: none; } }
 
 /* ---------- Modal ---------- */
@@ -183,6 +189,8 @@ textarea { width: 100%; min-height: 120px; background: rgba(0,0,0,0.35); color: 
   #endturn { width: 80px; height: 80px; }
   #chips { right: 104px; }
   #toasts { top: calc(108px + var(--safe-t)); max-width: 86vw; }
+  #flash { top: auto; bottom: calc(118px + var(--safe-b)); }
+  body.panel-open #flash { bottom: calc(50vh + 12px); }
   .mbox { padding: 14px; border-radius: 14px; }
   .cards { grid-template-columns: 1fr; }
   .setup .cards { grid-template-columns: 1fr 1fr; }
